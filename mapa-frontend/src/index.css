@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #1A73E8;
+  
+  --color-background-light: #F8F9FA;
+  --color-background-dark: #0f172a; /* Softened dark background (slate-950) */
+  --color-surface-light: #FFFFFF;
+  --color-surface-dark: #1e293b; /* Softened surface (slate-800) */
+
+  --color-risk-low: #22c55e;
+  --color-risk-moderate: #eab308;
+  --color-risk-high: #ef4444;
+
+  --font-display: 'Outfit', 'Inter', sans-serif;
+  --font-sans: 'Inter', sans-serif;
+}
+
+@custom-variant dark (&:is(.dark *));
+
+/* Custom CSS Resets & Aesthetics */
+
+:root {
+  background-color: var(--color-cream-100);
+  color: #2c312c;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#root {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Utility for smooth, slow fading cards */
+.fade-in-slow {
+  animation: fadeIn 0.8s ease-out forwards;
+}
+
+/* Utility for card click scale down */
+.scale-click {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.scale-click:active {
+  transform: scale(0.97);
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+/* Risk card borders */
+.risk-card-border-high {
+  border-left: 4px solid #ef4444;
+}
+
+.risk-card-border-moderate {
+  border-left: 4px solid #eab308;
+}
+
+.risk-card-border-low {
+  border-left: 4px solid #22c55e;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
