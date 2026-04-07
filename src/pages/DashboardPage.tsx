@@ -36,18 +36,31 @@ export function DashboardPage() {
   const { empresaId, shouldFilter } = useEmpresaFilter();
   const { user } = useAuth();
 
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     async function load() {
-      let query = supabase.from('vw_pgr_completo').select('*');
+      try {
+        let query = supabase.from('vw_pgr_completo').select('*');
 
-      // Gestor: filtra por empresa_id. Admin: vê tudo.
-      if (shouldFilter && empresaId) {
-        query = query.eq('empresa_id', empresaId);
+        // Gestor: filtra por empresa_id. Admin: vê tudo.
+        if (shouldFilter && empresaId) {
+          query = query.eq('empresa_id', empresaId);
+        }
+
+        const { data, error: queryError } = await query;
+        if (queryError) {
+          console.error('Erro ao carregar dados PGR:', queryError);
+          setError('Não foi possível carregar os dados. Tente novamente.');
+        } else if (data) {
+          setDados(data);
+        }
+      } catch (err) {
+        console.error('Erro inesperado:', err);
+        setError('Erro inesperado ao carregar dados.');
+      } finally {
+        setLoading(false);
       }
-
-      const { data } = await query;
-      if (data) setDados(data);
-      setLoading(false);
     }
     load();
   }, [empresaId, shouldFilter]);
@@ -61,8 +74,9 @@ export function DashboardPage() {
   });
 
   const cards: SetorCard[] = Array.from(setorMap.entries()).map(([nome, rows]) => {
-    const maxGrau = Math.max(...rows.map(r => r.grau_risco));
-    const avgScore = rows.reduce((a, r) => a + r.score_medio, 0) / rows.length;
+    const grauValues = rows.map(r => r.grau_risco);
+    const maxGrau = grauValues.length > 0 ? Math.max(...grauValues) : 0;
+    const avgScore = rows.length > 0 ? rows.reduce((a, r) => a + r.score_medio, 0) / rows.length : 0;
     const scoreDisplay = (avgScore / 25).toFixed(2); // Converter 0-100 para escala ~0-4
 
     let riskLevel: 'high' | 'moderate' | 'low';
@@ -149,6 +163,14 @@ export function DashboardPage() {
           {loading ? (
             <div className="flex items-center justify-center h-64">
               <div className="w-8 h-8 border-4 border-slate-200 rounded-full animate-spin" style={{ borderTopColor: '#3b82f6' }}></div>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center h-64 text-center">
+              <p className="text-lg text-red-500 font-semibold mb-2">Erro ao carregar dados</p>
+              <p className="text-sm text-slate-500 mb-4">{error}</p>
+              <button onClick={() => window.location.reload()} className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-semibold hover:bg-blue-600 transition-colors">
+                Tentar novamente
+              </button>
             </div>
           ) : (
             <>
