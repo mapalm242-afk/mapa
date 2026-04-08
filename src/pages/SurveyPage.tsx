@@ -6,16 +6,7 @@ import type { LikertValue } from '../components/LikertOption';
 import { LIKERT_CHOICES, LikertOption } from '../components/LikertOption';
 import { CompletionScreen } from '../components/CompletionScreen';
 import { WelcomeScreen } from '../components/WelcomeScreen';
-import { supabase } from '../lib/supabase';
-
-interface Question {
-  id: string;
-  question_number: number;
-  question_text: string;
-  is_inverted: boolean;
-  category_id: string;
-  category_name: string;
-}
+import { fetchQuestions, submitSurveyResponse, type Question } from '../services/survey';
 
 type AppState = 'LOADING' | 'WELCOME' | 'QUESTIONNAIRE' | 'COMPLETED' | 'INVALID_SETOR' | 'ERROR';
 
@@ -43,33 +34,9 @@ export function SurveyPage() {
       return;
     }
 
-    async function fetchQuestions() {
-      const { data, error } = await supabase
-        .from('questions')
-        .select('id, question_number, question_text, is_inverted, category_id, categories(name)')
-        .order('question_number', { ascending: true });
-
-      if (error || !data || data.length === 0) {
-        console.error('Erro ao carregar perguntas:', error);
-        setState('ERROR');
-        return;
-      }
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mapped: Question[] = data.map((q: any) => ({
-        id: q.id,
-        question_number: q.question_number,
-        question_text: q.question_text,
-        is_inverted: q.is_inverted,
-        category_id: q.category_id,
-        category_name: q.categories?.name ?? 'Geral',
-      }));
-
-      setQuestions(mapped);
-      setState('WELCOME');
-    }
-
-    fetchQuestions();
+    fetchQuestions()
+      .then(data => { setQuestions(data); setState('WELCOME'); })
+      .catch(err => { console.error('Erro ao carregar perguntas:', err); setState('ERROR'); });
   }, [setorId]);
 
   const currentQuestion = questions[currentIndex];
@@ -82,12 +49,8 @@ export function SurveyPage() {
     if (currentIndex < questions.length - 1) {
       setTimeout(() => setCurrentIndex(prev => prev + 1), 280);
     } else {
-      // Submit to Supabase
       try {
-        await supabase.from('respostas_brutas').insert({
-          setor_id: setorId,
-          respostas_json: newAnswers,
-        });
+        await submitSurveyResponse(setorId!, newAnswers);
       } catch {
         // Still show completion even if submission fails
       }

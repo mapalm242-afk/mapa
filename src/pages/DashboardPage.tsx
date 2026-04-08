@@ -1,25 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Sidebar } from '../components/Sidebar';
-import { supabase } from '../lib/supabase';
 import { useEmpresaFilter } from '../lib/useEmpresaFilter';
 import { useAuth } from '../context/AuthContext';
 import { generatePGR } from '../lib/generatePGR';
-
-interface PgrRow {
-  empresa_id: string;
-  qtd_funcionarios: number;
-  grupo_homogeneo: string;
-  descricao_perigo: string;
-  trabalhadores_expostos: number;
-  incidencia: string;
-  probabilidade: number;
-  severidade: number;
-  grau_risco: number;
-  classificacao_risco: string;
-  medidas_controle: string;
-  score_medio: number;
-  cor_hex: string;
-}
+import { fetchPgrCompleto, type PgrRow } from '../services/dashboard';
 
 interface SetorCard {
   nome: string;
@@ -41,20 +25,8 @@ export function DashboardPage() {
   useEffect(() => {
     async function load() {
       try {
-        let query = supabase.from('vw_pgr_completo').select('*');
-
-        // Gestor: filtra por empresa_id. Admin: vê tudo.
-        if (shouldFilter && empresaId) {
-          query = query.eq('empresa_id', empresaId);
-        }
-
-        const { data, error: queryError } = await query;
-        if (queryError) {
-          console.error('Erro ao carregar dados PGR:', queryError);
-          setError('Não foi possível carregar os dados. Tente novamente.');
-        } else if (data) {
-          setDados(data);
-        }
+        const data = await fetchPgrCompleto(shouldFilter ? empresaId : null);
+        setDados(data);
       } catch (err) {
         console.error('Erro inesperado:', err);
         setError('Erro inesperado ao carregar dados.');

@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Sidebar } from '../components/Sidebar';
 import { NewClientPage } from './NewClientPage';
-import { supabase } from '../lib/supabase';
+import {
+  fetchEmpresas, fetchEmployeesByEmpresa, fetchSubmissionsWithEmpresa,
+  fetchAlertasCriticos, fetchFatoresCopsoq, fetchDepartments,
+  type EmpresaRow,
+} from '../services/empresas';
+import { fetchResumoRisco } from '../services/dashboard';
 
 interface EmpresaRow {
   id: string;
@@ -49,56 +54,47 @@ export function SuperAdminPage() {
 
   const carregarDados = async () => {
     try {
-      // 1. Buscar empresas
-      const { data: empData } = await supabase.from('empresas').select('id, nome_fantasia, cnpj, data_cadastro');
-      const empresasList: EmpresaRow[] = empData || [];
+      const [empresasList, deptData, empDeptData, riscoData, subData, alertaData, fatorData] = await Promise.all([
+        fetchEmpresas(),
+        fetchDepartments(),
+        fetchEmployeesByEmpresa(),
+        fetchResumoRisco(),
+        fetchSubmissionsWithEmpresa(),
+        fetchAlertasCriticos(),
+        fetchFatoresCopsoq(),
+      ]);
 
-      // 2. Buscar departamentos por empresa (contagem)
-      const { data: deptData } = await supabase.from('departments').select('empresa_id');
+      // Contagem de departamentos por empresa
       const deptCounts = new Map<string, number>();
-      (deptData || []).forEach((d: { empresa_id: string }) => {
+      deptData.forEach((d: { empresa_id: string }) => {
         deptCounts.set(d.empresa_id, (deptCounts.get(d.empresa_id) || 0) + 1);
       });
 
-      // 3. Buscar employees por empresa (contagem)
-      const { data: empDeptData } = await supabase
-        .from('employees')
-        .select('id, department_id, departments(empresa_id)');
-
+      // Contagem de employees por empresa
       const colabCounts = new Map<string, number>();
       let totalC = 0;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (empDeptData || []).forEach((e: any) => {
+      empDeptData.forEach((e: any) => {
         const dept = Array.isArray(e.departments) ? e.departments[0] : e.departments;
         const empId = dept?.empresa_id;
-        if (empId) {
-          colabCounts.set(empId, (colabCounts.get(empId) || 0) + 1);
-          totalC++;
-        }
+        if (empId) { colabCounts.set(empId, (colabCounts.get(empId) || 0) + 1); totalC++; }
       });
       setTotalColab(totalC);
 
-      // 4. Buscar resumo de risco por empresa
-      const { data: riscoData } = await supabase.from('vw_resumo_risco_departamento').select('empresa_id, risco_global');
+      // Mapa de risco por empresa
       const riscoMap = new Map<string, string>();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (riscoData || []).forEach((r: any) => {
+      const priority = ['Intolerável', 'Significativo', 'Moderado', 'Tolerável', 'Baixo'];
+      riscoData.forEach((r: { empresa_id: string; risco_global: string }) => {
         const current = riscoMap.get(r.empresa_id);
-        const priority = ['Intolerável', 'Significativo', 'Moderado', 'Tolerável', 'Baixo'];
         if (!current || priority.indexOf(r.risco_global) < priority.indexOf(current)) {
           riscoMap.set(r.empresa_id, r.risco_global);
         }
       });
 
-      // 5. Buscar última submissão por empresa
-      const { data: subData } = await supabase
-        .from('submissions')
-        .select('submitted_at, employees(department_id, departments(empresa_id))')
-        .order('submitted_at', { ascending: false });
-
+      // Última coleta por empresa
       const ultimaColetaMap = new Map<string, string>();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (subData || []).forEach((s: any) => {
+      subData.forEach((s: any) => {
         const emp = Array.isArray(s.employees) ? s.employees[0] : s.employees;
         const dept = emp ? (Array.isArray(emp.departments) ? emp.departments[0] : emp.departments) : null;
         const empId = dept?.empresa_id;
@@ -107,53 +103,33 @@ export function SuperAdminPage() {
         }
       });
 
-      // Montar lista de empresas
-      const empresaViews: EmpresaView[] = empresasList.map(e => ({
-        id: e.id,
-        nome: e.nome_fantasia,
-        cnpj: e.cnpj,
+      setEmpresas(empresasList.map((e: EmpresaRow) => ({
+        id: e.id, nome: e.nome_fantasia, cnpj: e.cnpj,
         totalSetores: deptCounts.get(e.id) || 0,
         totalColab: colabCounts.get(e.id) || 0,
         riscoGlobal: riscoMap.get(e.id) || 'Sem dados',
         ultimaColeta: ultimaColetaMap.get(e.id) || null,
+      })));
+
+      // Alertas
+      const alertasList = alertaData.map((a: { empresa_id: string; grupo_homogeneo: string; risco_global: string }) => ({
+        setor: a.grupo_homogeneo,
+        empresa: empresasList.find((e: EmpresaRow) => e.id === a.empresa_id)?.nome_fantasia || 'Desconhecida',
+        risco: a.risco_global,
       }));
-      setEmpresas(empresaViews);
-
-      // 6. Alertas (setores com risco Intolerável ou Significativo)
-      const { data: alertaData } = await supabase
-        .from('vw_resumo_risco_departamento')
-        .select('empresa_id, grupo_homogeneo, risco_global')
-        .in('risco_global', ['Intolerável', 'Significativo']);
-
-      const alertasList = (alertaData || []).map((a: { empresa_id: string; grupo_homogeneo: string; risco_global: string }) => {
-        const emp = empresasList.find(e => e.id === a.empresa_id);
-        return {
-          setor: a.grupo_homogeneo,
-          empresa: emp?.nome_fantasia || 'Desconhecida',
-          risco: a.risco_global,
-        };
-      });
       setAlertas(alertasList);
       setTotalAlertas(alertasList.length);
 
-      // 7. Mapa de calor - médias globais por categoria COPSOQ
-      const { data: fatorData } = await supabase
-        .from('vw_media_por_categoria_setor')
-        .select('category_name, score_medio');
-
+      // Mapa de calor COPSOQ
       const fatorMap = new Map<string, { total: number; count: number }>();
-      (fatorData || []).forEach((f: { category_name: string; score_medio: number }) => {
+      fatorData.forEach((f: { category_name: string; score_medio: number }) => {
         const curr = fatorMap.get(f.category_name) || { total: 0, count: 0 };
-        curr.total += f.score_medio;
-        curr.count += 1;
+        curr.total += f.score_medio; curr.count += 1;
         fatorMap.set(f.category_name, curr);
       });
-
-      const fatoresList: FatorCopsoq[] = Array.from(fatorMap.entries())
+      setFatores(Array.from(fatorMap.entries())
         .map(([name, { total, count }]) => ({ category_name: name, score_medio: Math.round(total / count) }))
-        .sort((a, b) => b.score_medio - a.score_medio)
-        .slice(0, 8);
-      setFatores(fatoresList);
+        .sort((a, b) => b.score_medio - a.score_medio).slice(0, 8));
 
     } catch (err) {
       console.error('Erro ao carregar dados:', err);
@@ -162,13 +138,9 @@ export function SuperAdminPage() {
     }
   };
 
-  const abrirQRCodes = async (empresaId: string, empresaNome: string) => {
-    const { data } = await supabase
-      .from('departments')
-      .select('id, name')
-      .eq('empresa_id', empresaId)
-      .order('name');
-    setQrEmpresa({ nome: empresaNome, setores: data || [] });
+  const abrirQRCodes = async (empId: string, empresaNome: string) => {
+    const data = await fetchDepartments(empId);
+    setQrEmpresa({ nome: empresaNome, setores: data });
   };
 
   const gerarQRCodeUrl = (departmentId: string): string => {

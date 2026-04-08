@@ -1,35 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
-import { supabase } from '../lib/supabase';
 import { useEmpresaFilter } from '../lib/useEmpresaFilter';
-
-interface ResumoSetor {
-  empresa_id: string;
-  grupo_homogeneo: string;
-  qtd_funcionarios: number;
-  total_categorias: number;
-  qtd_baixo: number;
-  qtd_toleravel: number;
-  qtd_moderado: number;
-  qtd_significativo: number;
-  qtd_intoleravel: number;
-  risco_global: string;
-}
-
-interface TopRisco {
-  empresa_id: string;
-  department_name: string;
-  category_name: string;
-  score_medio: number;
-  semaforo_cor: string;
-}
-
-interface EvolucaoMensal {
-  mes: string;
-  score_medio: number;
-  total_respondentes: number;
-}
+import {
+  fetchResumoRisco, fetchTopRiscos, fetchEvolucaoMensal,
+  type ResumoSetor, type TopRisco, type EvolucaoMensal,
+} from '../services/dashboard';
 
 export function OverviewPage() {
   const [resumo, setResumo] = useState<ResumoSetor[]>([]);
@@ -44,36 +20,15 @@ export function OverviewPage() {
   useEffect(() => {
     async function load() {
       try {
-        let resumoQuery = supabase.from('vw_resumo_risco_departamento').select('*');
-        let topQuery = supabase.from('vw_media_por_categoria_setor')
-          .select('empresa_id, department_name, category_name, score_medio, semaforo_cor')
-          .order('score_medio', { ascending: false }).limit(5);
-        let evolucaoQuery = supabase.from('vw_evolucao_mensal')
-          .select('mes, score_medio, total_respondentes')
-          .order('mes', { ascending: true }).limit(12);
-
-        // Gestor: filtra por empresa_id. Admin: vê tudo.
-        if (shouldFilter && empresaId) {
-          resumoQuery = resumoQuery.eq('empresa_id', empresaId);
-          topQuery = topQuery.eq('empresa_id', empresaId);
-          evolucaoQuery = evolucaoQuery.eq('empresa_id', empresaId);
-        }
-
-        const [resResumo, resTop, resEvolucao] = await Promise.all([resumoQuery, topQuery, evolucaoQuery]);
-        if (resResumo.error) {
-          console.error('Erro ao carregar resumo:', resResumo.error);
-          setError('Não foi possível carregar os dados.');
-        } else if (resResumo.data) {
-          setResumo(resResumo.data);
-        }
-        if (resTop.error) {
-          console.error('Erro ao carregar top riscos:', resTop.error);
-        } else if (resTop.data) {
-          setTopRiscos(resTop.data);
-        }
-        if (resEvolucao.data) {
-          setEvolucao(resEvolucao.data);
-        }
+        const filterId = shouldFilter ? empresaId : null;
+        const [resumoData, topData, evolucaoData] = await Promise.all([
+          fetchResumoRisco(filterId),
+          fetchTopRiscos(filterId),
+          fetchEvolucaoMensal(filterId),
+        ]);
+        setResumo(resumoData);
+        setTopRiscos(topData);
+        setEvolucao(evolucaoData);
       } catch (err) {
         console.error('Erro inesperado:', err);
         setError('Erro inesperado ao carregar dados.');

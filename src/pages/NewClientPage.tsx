@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { supabase, supabaseUrl, supabaseAnonKey } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
+import { createEmpresa, createDepartments, createGestorUser } from '../services/empresas';
 
 interface Setor {
   id: string;
@@ -93,70 +94,16 @@ export function NewClientPage({ onClose }: { onClose?: () => void }) {
       console.log('Sessão admin verificada, access_token presente:', !!adminSession.access_token);
 
       // 1. Criar empresa
-      console.log('Criando empresa...');
-      const { data: empresa, error: errEmpresa } = await supabase
-        .from('empresas')
-        .insert({ nome_fantasia: formData.nomeFantasia, cnpj: formData.cnpj })
-        .select('id')
-        .single();
-
-      if (errEmpresa) throw new Error(`Erro ao criar empresa: ${errEmpresa.message}`);
-      console.log('Empresa criada:', empresa.id);
-
+      const empresa = await createEmpresa(formData.nomeFantasia, formData.cnpj);
       const newEmpresaId = empresa.id;
       setEmpresaId(newEmpresaId);
 
       // 2. Criar departamentos
-      console.log('Criando departamentos...');
-      const deptInserts = formData.setores.map(s => ({
-        empresa_id: newEmpresaId,
-        name: s.nome,
-      }));
+      const depts = await createDepartments(newEmpresaId, formData.setores.map(s => s.nome));
+      setSetoresCriados(depts.map(d => ({ id: d.id, nome: d.name })));
 
-      const { data: depts, error: errDepts } = await supabase
-        .from('departments')
-        .insert(deptInserts)
-        .select('id, name');
-
-      if (errDepts) throw new Error(`Erro ao criar setores: ${errDepts.message}`);
-      console.log('Departamentos criados:', depts?.length);
-
-      setSetoresCriados((depts || []).map(d => ({ id: d.id, nome: d.name })));
-
-      // 3. Criar usuário gestor via fetch direto (evita signUp que substitui a sessão)
-      console.log('Criando gestor...');
-      const signUpRes = await fetch(`${supabaseUrl}/auth/v1/signup`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': supabaseAnonKey,
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.senha,
-          data: {
-            role: 'gestor',
-            empresa_id: newEmpresaId,
-          },
-        }),
-      });
-
-      const signUpResult = await signUpRes.json();
-      if (signUpResult.error || signUpResult.code) {
-        throw new Error(`Erro ao criar usuário: ${signUpResult.error?.message || signUpResult.msg || 'Erro desconhecido'}`);
-      }
-      console.log('Gestor criado:', signUpResult.id);
-
-      // Criar/atualizar profile manualmente
-      if (signUpResult.id) {
-        console.log('Criando profile...');
-        await supabase.from('profiles').upsert({
-          id: signUpResult.id,
-          email: formData.email,
-          role: 'gestor',
-          empresa_id: newEmpresaId,
-        });
-      }
+      // 3. Criar usuário gestor
+      await createGestorUser(formData.email, formData.senha, newEmpresaId);
 
       console.log('Cadastro completo!');
       setCadastroCompleto(true);
