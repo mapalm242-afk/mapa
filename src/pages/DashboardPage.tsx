@@ -21,6 +21,7 @@ export function DashboardPage() {
   const { user } = useAuth();
 
   const [error, setError] = useState<string | null>(null);
+  const [selectedSetor, setSelectedSetor] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -201,9 +202,11 @@ export function DashboardPage() {
                 {cards.map((card) => {
                   const colors = riskColors[card.riskLevel];
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={card.nome}
-                      className={`bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden border-l-4 ${colors.border} flex flex-col ${card.riskLevel === 'low' ? 'opacity-80 hover:opacity-100 transition-opacity' : ''}`}
+                      onClick={() => setSelectedSetor(card.nome)}
+                      className={`bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden border-l-4 ${colors.border} flex flex-col text-left w-full cursor-pointer hover:shadow-lg hover:-translate-y-0.5 transition-all ${card.riskLevel === 'low' ? 'opacity-80 hover:opacity-100' : ''}`}
                     >
                       {/* Card Header */}
                       <div className="p-5 border-b border-slate-100 dark:border-slate-800">
@@ -243,8 +246,9 @@ export function DashboardPage() {
                             <p className="text-xs text-slate-400 italic">Sem recomendações pendentes</p>
                           )}
                         </div>
+                        <p className="mt-4 text-[11px] text-slate-400 italic">Clique para ver todas as subescalas →</p>
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
 
@@ -258,6 +262,131 @@ export function DashboardPage() {
           )}
         </div>
       </main>
+
+      {/* Modal: detalhamento de um setor */}
+      {selectedSetor && (() => {
+        const rows = (setorMap.get(selectedSetor) || [])
+          .slice()
+          .sort((a, b) => b.grau_risco - a.grau_risco);
+        const totalRespondentes = rows[0]?.qtd_funcionarios ?? 0;
+        const criticos = rows.filter(r => ['Intolerável', 'Significativo'].includes(r.classificacao_risco)).length;
+
+        const badgeClass = (cls: string) => {
+          switch (cls) {
+            case 'Intolerável':   return 'bg-red-900 text-red-100';
+            case 'Significativo': return 'bg-red-500 text-white';
+            case 'Moderado':      return 'bg-orange-500 text-white';
+            case 'Tolerável':     return 'bg-yellow-400 text-slate-900';
+            default:              return 'bg-green-500 text-white';
+          }
+        };
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setSelectedSetor(null)}
+          >
+            <div
+              className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal header */}
+              <div className="px-8 py-6 border-b border-slate-200 dark:border-slate-800 flex items-start justify-between shrink-0">
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{selectedSetor}</h2>
+                  <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-500">
+                    <span><strong className="text-slate-700 dark:text-slate-300">{totalRespondentes}</strong> colaborador(es)</span>
+                    <span><strong className="text-slate-700 dark:text-slate-300">{rows.length}</strong> subescalas analisadas</span>
+                    {criticos > 0 && (
+                      <span className="text-red-500 font-semibold">{criticos} crítica(s)</span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSetor(null)}
+                  className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-2 -m-2"
+                  aria-label="Fechar"
+                >
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+
+              {/* Modal body */}
+              <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
+                {rows.map((r, idx) => (
+                  <div
+                    key={`${r.subescala}-${idx}`}
+                    className="border border-slate-200 dark:border-slate-800 rounded-xl p-5 bg-slate-50 dark:bg-slate-950"
+                  >
+                    <div className="flex items-start justify-between gap-4 mb-3">
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white">{r.subescala}</h3>
+                      <span className={`shrink-0 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${badgeClass(r.classificacao_risco)}`}>
+                        {r.classificacao_risco}
+                      </span>
+                    </div>
+
+                    {/* Métricas */}
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4 text-xs">
+                      <div>
+                        <p className="text-slate-400 uppercase font-semibold">Score</p>
+                        <p className="text-slate-900 dark:text-white font-bold text-base">{r.score_medio.toFixed(1)}%</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-400 uppercase font-semibold">Incidência</p>
+                        <p className="text-slate-900 dark:text-white font-bold text-base">{r.incidencia}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-400 uppercase font-semibold">Probabilidade</p>
+                        <p className="text-slate-900 dark:text-white font-bold text-base">{r.probabilidade}/5</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-400 uppercase font-semibold">Severidade</p>
+                        <p className="text-slate-900 dark:text-white font-bold text-base">{r.severidade}/5</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-400 uppercase font-semibold">Grau de Risco</p>
+                        <p className="text-slate-900 dark:text-white font-bold text-base">{r.grau_risco}/25</p>
+                      </div>
+                    </div>
+
+                    {/* Descrição do perigo */}
+                    <div className="mb-3">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Descrição do perigo</p>
+                      <p className="text-sm text-slate-700 dark:text-slate-300">{r.descricao_perigo}</p>
+                    </div>
+
+                    {/* Consequências */}
+                    {r.consequencias && (
+                      <div className="mb-3">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Consequências</p>
+                        <p className="text-sm text-slate-700 dark:text-slate-300">{r.consequencias}</p>
+                      </div>
+                    )}
+
+                    {/* Medidas de controle */}
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Medidas de controle</p>
+                      <p className="text-sm text-slate-700 dark:text-slate-300">{r.medidas_controle}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Modal footer */}
+              <div className="px-8 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setSelectedSetor(null)}
+                  className="px-5 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg font-semibold text-sm transition-colors"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

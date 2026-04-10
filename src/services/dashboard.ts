@@ -5,6 +5,8 @@ export interface PgrRow {
   qtd_funcionarios: number;
   grupo_homogeneo: string;
   descricao_perigo: string;
+  consequencias: string | null;
+  subescala: string;
   trabalhadores_expostos: number;
   incidencia: string;
   probabilidade: number;
