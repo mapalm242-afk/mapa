@@ -1,30 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Sidebar } from '../components/Sidebar';
 import { useEmpresaFilter } from '../lib/useEmpresaFilter';
-import { fetchSetoresComStatus, type SetorStatus } from '../services/setores';
+import { fetchSetoresComStatus } from '../services/setores';
 
 export function SetoresPage() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [setores, setSetores] = useState<SetorStatus[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const { empresaId, shouldFilter } = useEmpresaFilter();
+  const filterId = shouldFilter ? empresaId : null;
 
-  useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true);
-        const data = await fetchSetoresComStatus(shouldFilter ? empresaId : null);
-        setSetores(data);
-      } catch (err) {
-        console.error('Erro ao carregar setores:', err);
-        setError('Não foi possível carregar os setores.');
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, [empresaId, shouldFilter]);
+  const { data: setores = [], isLoading: loading, error: queryError } = useQuery({
+    queryKey: ['setoresComStatus', filterId],
+    queryFn: () => fetchSetoresComStatus(filterId),
+  });
+
+  const error = queryError ? 'Não foi possível carregar os setores.' : null;
 
   const getRiskColor = (nivel: string) => {
     if (nivel === 'Crítico') return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700';

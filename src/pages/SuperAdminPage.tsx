@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import { Sidebar } from '../components/Sidebar';
 import { NewClientPage } from './NewClientPage';
@@ -9,13 +10,6 @@ import {
   type EmpresaRow,
 } from '../services/empresas';
 import { fetchResumoRisco } from '../services/dashboard';
-
-interface EmpresaRow {
-  id: string;
-  nome_fantasia: string;
-  cnpj: string;
-  data_cadastro: string;
-}
 
 interface EmpresaView {
   id: string;
@@ -32,111 +26,96 @@ interface FatorCopsoq {
   score_medio: number;
 }
 
+async function carregarDadosAdmin() {
+  const [empresasList, deptData, empDeptData, riscoData, subData, alertaData, fatorData] = await Promise.all([
+    fetchEmpresas(),
+    fetchDepartments(),
+    fetchEmployeesByEmpresa(),
+    fetchResumoRisco(),
+    fetchSubmissionsWithEmpresa(),
+    fetchAlertasCriticos(),
+    fetchFatoresCopsoq(),
+  ]);
+
+  const deptCounts = new Map<string, number>();
+  deptData.forEach((d: { empresa_id: string }) => {
+    deptCounts.set(d.empresa_id, (deptCounts.get(d.empresa_id) || 0) + 1);
+  });
+
+  const colabCounts = new Map<string, number>();
+  let totalColab = 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  empDeptData.forEach((e: any) => {
+    const dept = Array.isArray(e.departments) ? e.departments[0] : e.departments;
+    const empId = dept?.empresa_id;
+    if (empId) { colabCounts.set(empId, (colabCounts.get(empId) || 0) + 1); totalColab++; }
+  });
+
+  const riscoMap = new Map<string, string>();
+  const priority = ['Intolerável', 'Significativo', 'Moderado', 'Tolerável', 'Baixo'];
+  riscoData.forEach((r: { empresa_id: string; risco_global: string }) => {
+    const current = riscoMap.get(r.empresa_id);
+    if (!current || priority.indexOf(r.risco_global) < priority.indexOf(current)) {
+      riscoMap.set(r.empresa_id, r.risco_global);
+    }
+  });
+
+  const ultimaColetaMap = new Map<string, string>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  subData.forEach((s: any) => {
+    const emp = Array.isArray(s.employees) ? s.employees[0] : s.employees;
+    const dept = emp ? (Array.isArray(emp.departments) ? emp.departments[0] : emp.departments) : null;
+    const empId = dept?.empresa_id;
+    if (empId && !ultimaColetaMap.has(empId)) {
+      ultimaColetaMap.set(empId, new Date(s.submitted_at).toLocaleDateString('pt-BR'));
+    }
+  });
+
+  const empresas: EmpresaView[] = empresasList.map((e: EmpresaRow) => ({
+    id: e.id, nome: e.nome_fantasia, cnpj: e.cnpj,
+    totalSetores: deptCounts.get(e.id) || 0,
+    totalColab: colabCounts.get(e.id) || 0,
+    riscoGlobal: riscoMap.get(e.id) || 'Sem dados',
+    ultimaColeta: ultimaColetaMap.get(e.id) || null,
+  }));
+
+  const alertas = alertaData.map((a: { empresa_id: string; grupo_homogeneo: string; risco_global: string }) => ({
+    setor: a.grupo_homogeneo,
+    empresa: empresasList.find((e: EmpresaRow) => e.id === a.empresa_id)?.nome_fantasia || 'Desconhecida',
+    risco: a.risco_global,
+  }));
+
+  const fatorMap = new Map<string, { total: number; count: number }>();
+  fatorData.forEach((f: { category_name: string; score_medio: number }) => {
+    const curr = fatorMap.get(f.category_name) || { total: 0, count: 0 };
+    curr.total += f.score_medio; curr.count += 1;
+    fatorMap.set(f.category_name, curr);
+  });
+  const fatores: FatorCopsoq[] = Array.from(fatorMap.entries())
+    .map(([name, { total, count }]) => ({ category_name: name, score_medio: Math.round(total / count) }))
+    .sort((a, b) => b.score_medio - a.score_medio).slice(0, 8);
+
+  return { empresas, fatores, totalColab, alertas, totalAlertas: alertas.length };
+}
+
 export function SuperAdminPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [empresas, setEmpresas] = useState<EmpresaView[]>([]);
-  const [fatores, setFatores] = useState<FatorCopsoq[]>([]);
-  const [totalColab, setTotalColab] = useState(0);
-  const [totalAlertas, setTotalAlertas] = useState(0);
-  const [alertas, setAlertas] = useState<{ setor: string; empresa: string; risco: string }[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [showNovoClienteModal, setShowNovoClienteModal] = useState(false);
   const [qrEmpresa, setQrEmpresa] = useState<{ nome: string; setores: { id: string; name: string }[] } | null>(null);
 
-  useEffect(() => {
-    if (user?.role !== 'admin') {
-      navigate('/dashboard');
-    }
-    carregarDados();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ['superAdminData'],
+    queryFn: carregarDadosAdmin,
+    enabled: user?.role === 'admin',
+  });
 
-  const carregarDados = async () => {
-    try {
-      const [empresasList, deptData, empDeptData, riscoData, subData, alertaData, fatorData] = await Promise.all([
-        fetchEmpresas(),
-        fetchDepartments(),
-        fetchEmployeesByEmpresa(),
-        fetchResumoRisco(),
-        fetchSubmissionsWithEmpresa(),
-        fetchAlertasCriticos(),
-        fetchFatoresCopsoq(),
-      ]);
-
-      // Contagem de departamentos por empresa
-      const deptCounts = new Map<string, number>();
-      deptData.forEach((d: { empresa_id: string }) => {
-        deptCounts.set(d.empresa_id, (deptCounts.get(d.empresa_id) || 0) + 1);
-      });
-
-      // Contagem de employees por empresa
-      const colabCounts = new Map<string, number>();
-      let totalC = 0;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      empDeptData.forEach((e: any) => {
-        const dept = Array.isArray(e.departments) ? e.departments[0] : e.departments;
-        const empId = dept?.empresa_id;
-        if (empId) { colabCounts.set(empId, (colabCounts.get(empId) || 0) + 1); totalC++; }
-      });
-      setTotalColab(totalC);
-
-      // Mapa de risco por empresa
-      const riscoMap = new Map<string, string>();
-      const priority = ['Intolerável', 'Significativo', 'Moderado', 'Tolerável', 'Baixo'];
-      riscoData.forEach((r: { empresa_id: string; risco_global: string }) => {
-        const current = riscoMap.get(r.empresa_id);
-        if (!current || priority.indexOf(r.risco_global) < priority.indexOf(current)) {
-          riscoMap.set(r.empresa_id, r.risco_global);
-        }
-      });
-
-      // Última coleta por empresa
-      const ultimaColetaMap = new Map<string, string>();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      subData.forEach((s: any) => {
-        const emp = Array.isArray(s.employees) ? s.employees[0] : s.employees;
-        const dept = emp ? (Array.isArray(emp.departments) ? emp.departments[0] : emp.departments) : null;
-        const empId = dept?.empresa_id;
-        if (empId && !ultimaColetaMap.has(empId)) {
-          ultimaColetaMap.set(empId, new Date(s.submitted_at).toLocaleDateString('pt-BR'));
-        }
-      });
-
-      setEmpresas(empresasList.map((e: EmpresaRow) => ({
-        id: e.id, nome: e.nome_fantasia, cnpj: e.cnpj,
-        totalSetores: deptCounts.get(e.id) || 0,
-        totalColab: colabCounts.get(e.id) || 0,
-        riscoGlobal: riscoMap.get(e.id) || 'Sem dados',
-        ultimaColeta: ultimaColetaMap.get(e.id) || null,
-      })));
-
-      // Alertas
-      const alertasList = alertaData.map((a: { empresa_id: string; grupo_homogeneo: string; risco_global: string }) => ({
-        setor: a.grupo_homogeneo,
-        empresa: empresasList.find((e: EmpresaRow) => e.id === a.empresa_id)?.nome_fantasia || 'Desconhecida',
-        risco: a.risco_global,
-      }));
-      setAlertas(alertasList);
-      setTotalAlertas(alertasList.length);
-
-      // Mapa de calor COPSOQ
-      const fatorMap = new Map<string, { total: number; count: number }>();
-      fatorData.forEach((f: { category_name: string; score_medio: number }) => {
-        const curr = fatorMap.get(f.category_name) || { total: 0, count: 0 };
-        curr.total += f.score_medio; curr.count += 1;
-        fatorMap.set(f.category_name, curr);
-      });
-      setFatores(Array.from(fatorMap.entries())
-        .map(([name, { total, count }]) => ({ category_name: name, score_medio: Math.round(total / count) }))
-        .sort((a, b) => b.score_medio - a.score_medio).slice(0, 8));
-
-    } catch (err) {
-      console.error('Erro ao carregar dados:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const empresas = data?.empresas ?? [];
+  const fatores = data?.fatores ?? [];
+  const totalColab = data?.totalColab ?? 0;
+  const alertas = data?.alertas ?? [];
+  const totalAlertas = data?.totalAlertas ?? 0;
 
   const abrirQRCodes = async (empId: string, empresaNome: string) => {
     const data = await fetchDepartments(empId);
@@ -378,7 +357,7 @@ export function SuperAdminPage() {
 
       {showNovoClienteModal && (
         <div className="absolute inset-0 z-50">
-          <NewClientPage onClose={() => { setShowNovoClienteModal(false); carregarDados(); }} />
+          <NewClientPage onClose={() => { setShowNovoClienteModal(false); queryClient.invalidateQueries({ queryKey: ['superAdminData'] }); }} />
         </div>
       )}
 

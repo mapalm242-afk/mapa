@@ -1,53 +1,33 @@
-import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Sidebar } from '../components/Sidebar';
 import { useEmpresaFilter } from '../lib/useEmpresaFilter';
 import {
   fetchTendenciaRiscos,
   fetchHistoricoColetas,
   fetchReportsStats,
-  type TendenciaMes,
-  type HistoricoSetor,
-  type ReportsStats,
 } from '../services/reports';
 
 export function ReportsPage() {
   const { empresaId, shouldFilter } = useEmpresaFilter();
   const navigate = useNavigate();
+  const filterId = shouldFilter ? empresaId : null;
 
-  const [tendencia, setTendencia] = useState<TendenciaMes[]>([]);
-  const [historico, setHistorico] = useState<HistoricoSetor[]>([]);
-  const [stats, setStats] = useState<ReportsStats>({
-    total_coletas: 0,
-    este_mes: 0,
-    completa_pct: 0,
-    ultimas_24h: 0,
+  const { data: tendencia = [], isLoading: l1, error: e1 } = useQuery({
+    queryKey: ['tendenciaRiscos', filterId],
+    queryFn: () => fetchTendenciaRiscos(filterId),
   });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: historico = [], isLoading: l2 } = useQuery({
+    queryKey: ['historicoColetas', filterId],
+    queryFn: () => fetchHistoricoColetas(filterId),
+  });
+  const { data: stats = { total_coletas: 0, este_mes: 0, completa_pct: 0, ultimas_24h: 0 }, isLoading: l3 } = useQuery({
+    queryKey: ['reportsStats', filterId],
+    queryFn: () => fetchReportsStats(filterId),
+  });
 
-  useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true);
-        const filterId = shouldFilter ? empresaId : null;
-        const [t, h, s] = await Promise.all([
-          fetchTendenciaRiscos(filterId),
-          fetchHistoricoColetas(filterId),
-          fetchReportsStats(filterId),
-        ]);
-        setTendencia(t);
-        setHistorico(h);
-        setStats(s);
-      } catch (err) {
-        console.error('Erro ao carregar relatórios:', err);
-        setError('Erro ao carregar dados de relatórios.');
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, [empresaId, shouldFilter]);
+  const loading = l1 || l2 || l3;
+  const error = e1 ? 'Erro ao carregar dados de relatórios.' : null;
 
   const getRiscoBadge = (classificacao: string | null) => {
     if (!classificacao) return 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400';

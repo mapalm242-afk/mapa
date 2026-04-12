@@ -1,43 +1,33 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { Sidebar } from '../components/Sidebar';
 import { useEmpresaFilter } from '../lib/useEmpresaFilter';
 import {
   fetchResumoRisco, fetchTopRiscos, fetchEvolucaoMensal,
-  type ResumoSetor, type TopRisco, type EvolucaoMensal,
 } from '../services/dashboard';
 
 export function OverviewPage() {
-  const [resumo, setResumo] = useState<ResumoSetor[]>([]);
-  const [topRiscos, setTopRiscos] = useState<TopRisco[]>([]);
-  const [evolucao, setEvolucao] = useState<EvolucaoMensal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const { empresaId, shouldFilter } = useEmpresaFilter();
   const navigate = useNavigate();
+  const filterId = shouldFilter ? empresaId : null;
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const filterId = shouldFilter ? empresaId : null;
-        const [resumoData, topData, evolucaoData] = await Promise.all([
-          fetchResumoRisco(filterId),
-          fetchTopRiscos(filterId),
-          fetchEvolucaoMensal(filterId),
-        ]);
-        setResumo(resumoData);
-        setTopRiscos(topData);
-        setEvolucao(evolucaoData);
-      } catch (err) {
-        console.error('Erro inesperado:', err);
-        setError('Erro inesperado ao carregar dados.');
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, [empresaId, shouldFilter]);
+  const { data: resumo = [], isLoading: l1, error: e1 } = useQuery({
+    queryKey: ['resumoRisco', filterId],
+    queryFn: () => fetchResumoRisco(filterId),
+  });
+  const { data: topRiscos = [], isLoading: l2 } = useQuery({
+    queryKey: ['topRiscos', filterId],
+    queryFn: () => fetchTopRiscos(filterId),
+  });
+  const { data: evolucao = [], isLoading: l3 } = useQuery({
+    queryKey: ['evolucaoMensal', filterId],
+    queryFn: () => fetchEvolucaoMensal(filterId),
+  });
+
+  const loading = l1 || l2 || l3;
+  const error = e1 ? 'Erro inesperado ao carregar dados.' : null;
 
   const totalFuncionarios = resumo.reduce((a, r) => a + r.qtd_funcionarios, 0);
   const setoresCriticos = resumo.filter(r => r.risco_global === 'Intolerável' || r.risco_global === 'Significativo');

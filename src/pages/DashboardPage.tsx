@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Sidebar } from '../components/Sidebar';
 import { useEmpresaFilter } from '../lib/useEmpresaFilter';
 import { useAuth } from '../context/AuthContext';
@@ -15,28 +16,17 @@ interface SetorCard {
 }
 
 export function DashboardPage() {
-  const [dados, setDados] = useState<PgrRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const { empresaId, shouldFilter } = useEmpresaFilter();
   const { user } = useAuth();
-
-  const [error, setError] = useState<string | null>(null);
   const [selectedSetor, setSelectedSetor] = useState<string | null>(null);
+  const filterId = shouldFilter ? empresaId : null;
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const data = await fetchPgrCompleto(shouldFilter ? empresaId : null);
-        setDados(data);
-      } catch (err) {
-        console.error('Erro inesperado:', err);
-        setError('Erro inesperado ao carregar dados.');
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, [empresaId, shouldFilter]);
+  const { data: dados = [], isLoading: loading, error: queryError } = useQuery({
+    queryKey: ['pgrCompleto', filterId],
+    queryFn: () => fetchPgrCompleto(filterId),
+  });
+
+  const error = queryError ? 'Erro inesperado ao carregar dados.' : null;
 
   // Agrupar dados por setor e montar cards
   const setorMap = new Map<string, PgrRow[]>();
