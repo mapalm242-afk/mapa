@@ -287,11 +287,11 @@ export function DashboardPage() {
             onClick={() => setSelectedSetor(null)}
           >
             <div
-              className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden"
+              className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden mx-2 md:mx-0"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal header */}
-              <div className="px-8 py-6 border-b border-slate-200 dark:border-slate-800 flex items-start justify-between shrink-0">
+              <div className="px-4 py-5 md:px-8 md:py-6 border-b border-slate-200 dark:border-slate-800 flex items-start justify-between shrink-0">
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{selectedSetor}</h2>
                   <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-500">
@@ -313,7 +313,7 @@ export function DashboardPage() {
               </div>
 
               {/* Modal body */}
-              <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
+              <div className="flex-1 overflow-y-auto px-4 py-5 md:px-8 md:py-6 space-y-4 md:space-y-6">
                 {rows.map((r, idx) => (
                   <div
                     key={`${r.subescala}-${idx}`}
@@ -327,7 +327,7 @@ export function DashboardPage() {
                     </div>
 
                     {/* Métricas */}
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4 text-xs">
+                    <div className="grid grid-cols-3 md:grid-cols-5 gap-2 md:gap-3 mb-4 text-xs">
                       <div>
                         <p className="text-slate-400 uppercase font-semibold">Score</p>
                         <p className="text-slate-900 dark:text-white font-bold text-base">{r.score_medio.toFixed(1)}%</p>
@@ -374,7 +374,7 @@ export function DashboardPage() {
               </div>
 
               {/* Modal footer */}
-              <div className="px-8 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end shrink-0">
+              <div className="px-4 py-3 md:px-8 md:py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end shrink-0">
                 <button
                   type="button"
                   onClick={() => setSelectedSetor(null)}

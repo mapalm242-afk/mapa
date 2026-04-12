@@ -235,7 +235,8 @@ export function FinanceiroPage() {
 
               {/* Transactions Table */}
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-                <table className="w-full">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[700px]">
                   <thead>
                     <tr className="border-b border-slate-200 dark:border-slate-800">
                       <th className="px-6 py-4 text-left text-sm font-bold text-slate-600 dark:text-slate-400">Descrição</th>
@@ -282,6 +283,7 @@ export function FinanceiroPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           </div>

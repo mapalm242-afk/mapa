@@ -246,7 +246,8 @@ export function SuperAdminPage() {
                 <div className="xl:col-span-2 space-y-4">
                   <h4 className="text-xl font-bold text-slate-900 dark:text-white">Gestão de Clientes</h4>
                   <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
-                    <table className="w-full text-left border-collapse">
+                    <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse min-w-[600px]">
                       <thead>
                         <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
                           <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Empresa</th>
@@ -303,6 +304,7 @@ export function SuperAdminPage() {
                         ))}
                       </tbody>
                     </table>
+                    </div>
                     <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800">
                       <p className="text-xs text-slate-500 font-medium">{empresas.length} empresas cadastradas</p>
                     </div>
@@ -338,7 +340,8 @@ export function SuperAdminPage() {
               <div className="space-y-4">
                 <h4 className="text-xl font-bold text-slate-900 dark:text-white">Alertas Recentes</h4>
                 <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
-                  <table className="w-full">
+                  <div className="overflow-x-auto">
+                  <table className="w-full min-w-[400px]">
                     <thead>
                       <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                         <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-widest">Empresa</th>
@@ -365,6 +368,7 @@ export function SuperAdminPage() {
                       )}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </div>
             </>

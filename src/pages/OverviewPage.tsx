@@ -215,7 +215,7 @@ export function OverviewPage() {
                     );
                   })()}
                 </div>
-                <div className="relative h-72 w-full">
+                <div className="relative h-48 md:h-72 w-full">
                   {evolucao.length > 0 ? (() => {
                     const padding = 20;
                     const width = 1000;
@@ -251,7 +251,7 @@ export function OverviewPage() {
                             </g>
                           ))}
                         </svg>
-                        <div className="flex justify-between mt-8 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">
+                        <div className="flex justify-between mt-4 md:mt-8 text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider md:tracking-[0.2em]">
                           {evolucao.map((e, i) => {
                             const d = new Date(e.mes);
                             return <span key={i}>{meses[d.getMonth()]} {d.getFullYear().toString().slice(2)}</span>;
