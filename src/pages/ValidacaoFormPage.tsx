@@ -279,7 +279,7 @@ export function ValidacaoFormPage() {
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Empresa</label>
                     <select value={empresaId} onChange={e => { setEmpresaId(e.target.value); setDepartmentId(''); }}
-                      className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm">
+                      className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white">
                       <option value="">Selecione...</option>
                       {empresas.map(e => <option key={e.id} value={e.id}>{e.nome_fantasia}</option>)}
                     </select>
@@ -288,7 +288,7 @@ export function ValidacaoFormPage() {
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Setor</label>
                   <select value={departmentId} onChange={e => setDepartmentId(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm">
+                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white">
                     <option value="">Selecione...</option>
                     {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </select>
@@ -296,19 +296,19 @@ export function ValidacaoFormPage() {
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Avaliador</label>
                   <input type="text" value={avaliador} onChange={e => setAvaliador(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm"
+                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white"
                     placeholder="Nome do avaliador" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Participantes</label>
                   <input type="text" value={participantes} onChange={e => setParticipantes(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm"
+                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white"
                     placeholder="Quem participou da avaliação" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Data</label>
                   <input type="date" value={dataAvaliacao} onChange={e => setDataAvaliacao(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm" />
+                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white" />
                 </div>
               </div>
             </div>
@@ -324,7 +324,7 @@ export function ValidacaoFormPage() {
                         <span className="mr-2">{bloco.icone}</span>
                         Bloco {bloco.numero} — {bloco.titulo}
                       </h2>
-                      <p className="text-sm text-slate-500 mt-1">{bloco.subtitulo}</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{bloco.subtitulo}</p>
                     </div>
                     {copsoq && departmentId && (
                       <div className={`shrink-0 px-3 py-2 rounded-xl text-center ${
@@ -351,7 +351,7 @@ export function ValidacaoFormPage() {
                               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all border ${
                                 respostas[`${bloco.numero}-${p.num}`] === op
                                   ? 'bg-[#2D5A5A] text-white border-[#2D5A5A]'
-                                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:border-[#009B9B]'
+                                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600 hover:border-[#009B9B]'
                               }`}>
                               {OPCAO_LABELS[op] || op}
                             </button>
@@ -362,11 +362,11 @@ export function ValidacaoFormPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Evidência</label>
+                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Evidência</label>
                     <textarea
                       value={evidenciasTexto[bloco.numero] || ''}
                       onChange={e => setEvidenciasTexto(prev => ({ ...prev, [bloco.numero]: e.target.value }))}
-                      className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm resize-none h-20"
+                      className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white resize-none h-20"
                       placeholder="Descreva as evidências observadas..."
                     />
                   </div>
@@ -390,7 +390,7 @@ export function ValidacaoFormPage() {
                       onChange={e => setEvidencias(prev => ({ ...prev, [t.id]: e.target.checked }))}
                       className="w-5 h-5 rounded border-slate-300 text-[#009B9B] focus:ring-[#009B9B]"
                     />
-                    <span className="text-sm text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
+                    <span className="text-sm text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
                       {t.label}
                     </span>
                     <span className="text-[10px] text-slate-400 ml-auto">peso: +{t.peso}</span>
@@ -399,11 +399,11 @@ export function ValidacaoFormPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Detalhar</label>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Detalhar</label>
                 <textarea
                   value={detalhamento7}
                   onChange={e => setDetalhamento7(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm resize-none h-20"
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white resize-none h-20"
                   placeholder="Detalhe as evidências encontradas..."
                 />
               </div>
