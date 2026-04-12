@@ -1,8 +1,9 @@
 interface WelcomeScreenProps {
   onStart: () => void;
+  setorNome?: string | null;
 }
 
-export function WelcomeScreen({ onStart }: WelcomeScreenProps) {
+export function WelcomeScreen({ onStart, setorNome }: WelcomeScreenProps) {
   return (
     <div className="flex flex-col items-center justify-center p-6 min-h-dvh text-center fade-in-slow" style={{ background: 'linear-gradient(to bottom, #f0fafa, #ffffff, #f0fafa)' }}>
       <div className="mb-12">
@@ -17,7 +18,13 @@ export function WelcomeScreen({ onStart }: WelcomeScreenProps) {
         <p className="text-lg font-semibold mb-2" style={{ color: '#009B9B' }}>
           Bem-estar e Saúde Mental Ocupacional
         </p>
-        <p className="text-base max-w-xs mx-auto leading-relaxed" style={{ color: '#404040' }}>
+        {setorNome && (
+          <div className="mt-4 mb-2 px-5 py-2.5 rounded-xl inline-block" style={{ backgroundColor: '#2D5A5A' }}>
+            <p className="text-xs text-white/60 uppercase tracking-widest font-bold">Setor</p>
+            <p className="text-lg text-white font-bold">{setorNome}</p>
+          </div>
+        )}
+        <p className="text-base max-w-xs mx-auto leading-relaxed mt-2" style={{ color: '#404040' }}>
           A sua voz é importante e o seu anonimato é garantido.
         </p>
       </div>

@@ -7,13 +7,13 @@ import { LIKERT_CHOICES, LikertOption } from '../components/LikertOption';
 import { CompletionScreen } from '../components/CompletionScreen';
 import { WelcomeScreen } from '../components/WelcomeScreen';
 import { fetchQuestions, submitSurveyResponse, type Question } from '../services/survey';
+import { supabase } from '../lib/supabase';
 
 type AppState = 'LOADING' | 'WELCOME' | 'QUESTIONNAIRE' | 'COMPLETED' | 'INVALID_SETOR' | 'ERROR';
 
 function getSetorId(searchParams: URLSearchParams): string | null {
   const fromRouter = searchParams.get('setor');
   if (fromRouter) return fromRouter;
-  // Fallback: read directly from URL (fixes Hostinger rewrite issues)
   const urlParams = new URLSearchParams(window.location.search);
   return urlParams.get('setor');
 }
@@ -26,16 +26,23 @@ export function SurveyPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [direction, setDirection] = useState(1);
+  const [setorNome, setSetorNome] = useState<string | null>(null);
 
-  // Fetch questions from Supabase
   useEffect(() => {
     if (!setorId || setorId.trim() === '') {
       setState('INVALID_SETOR');
       return;
     }
 
-    fetchQuestions()
-      .then(data => { setQuestions(data); setState('WELCOME'); })
+    Promise.all([
+      fetchQuestions(),
+      supabase.from('departments').select('name').eq('id', setorId).single(),
+    ])
+      .then(([questionsData, { data: dept }]) => {
+        setQuestions(questionsData);
+        setSetorNome(dept?.name || null);
+        setState('WELCOME');
+      })
       .catch(err => { console.error('Erro ao carregar perguntas:', err); setState('ERROR'); });
   }, [setorId]);
 
@@ -86,7 +93,7 @@ export function SurveyPage() {
   }
 
   if (state === 'WELCOME') {
-    return <WelcomeScreen onStart={() => setState('QUESTIONNAIRE')} />;
+    return <WelcomeScreen onStart={() => setState('QUESTIONNAIRE')} setorNome={setorNome} />;
   }
 
   if (state === 'COMPLETED') {
@@ -99,6 +106,11 @@ export function SurveyPage() {
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xl" style={{ backgroundColor: '#009B9B' }}>M</div>
           <span className="font-display font-semibold text-xl tracking-tight" style={{ color: '#2D5A5A' }}>M.A.P.A.</span>
+          {setorNome && (
+            <span className="hidden sm:inline-block ml-3 px-3 py-1 rounded-lg text-xs font-bold text-white" style={{ backgroundColor: '#2D5A5A' }}>
+              {setorNome}
+            </span>
+          )}
         </div>
       </header>
 
