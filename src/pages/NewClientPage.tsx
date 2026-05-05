@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { createEmpresa, createDepartments, createGestorUser } from '../services/empresas';
+import { createEmpresa, createDepartments, createGestorUser, uploadEmpresaLogo } from '../services/empresas';
 
 interface Setor {
   id: string;
@@ -35,6 +35,7 @@ export function NewClientPage({ onClose }: { onClose?: () => void }) {
   const [cadastroCompleto, setCadastroCompleto] = useState(false);
   const [, setEmpresaId] = useState<string>('');
   const [setoresCriados, setSetoresCriados] = useState<SetorCriado[]>([]);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -45,7 +46,9 @@ export function NewClientPage({ onClose }: { onClose?: () => void }) {
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFormData(prev => ({ ...prev, logo: e.target.files![0] }));
+      const file = e.target.files[0];
+      setFormData(prev => ({ ...prev, logo: file }));
+      setLogoPreview(URL.createObjectURL(file));
     }
   };
 
@@ -139,6 +142,11 @@ export function NewClientPage({ onClose }: { onClose?: () => void }) {
       const empresa = await createEmpresa(formData.nomeFantasia, formData.cnpj);
       const newEmpresaId = empresa.id;
       setEmpresaId(newEmpresaId);
+
+      // 1.1. Upload do logo, se fornecido
+      if (formData.logo) {
+        await uploadEmpresaLogo(newEmpresaId, formData.logo);
+      }
 
       // 2. Criar departamentos
       const depts = await createDepartments(newEmpresaId, formData.setores.map(s => s.nome));
@@ -328,9 +336,13 @@ export function NewClientPage({ onClose }: { onClose?: () => void }) {
             <div className="flex flex-col gap-2.5">
               <label className="text-slate-700 dark:text-slate-300 text-sm font-bold ml-1">Logotipo da Empresa</label>
               <div className="flex flex-col items-center gap-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 px-6 py-10 hover:bg-slate-50/50 dark:hover:bg-slate-800 hover:border-slate-400 dark:hover:border-slate-500 transition-all cursor-pointer group">
-                <div className="w-14 h-14 rounded-full bg-white dark:bg-slate-700 shadow-sm flex items-center justify-center border border-slate-100 dark:border-slate-600">
-                  <span className="material-symbols-rounded text-3xl text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">cloud_upload</span>
-                </div>
+                {logoPreview ? (
+                  <img src={logoPreview} alt="Preview do logo" className="w-20 h-20 object-contain rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-1" />
+                ) : (
+                  <div className="w-14 h-14 rounded-full bg-white dark:bg-slate-700 shadow-sm flex items-center justify-center border border-slate-100 dark:border-slate-600">
+                    <span className="material-symbols-rounded text-3xl text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">cloud_upload</span>
+                  </div>
+                )}
                 <div className="text-center">
                   <p className="text-slate-700 dark:text-slate-300 text-base font-bold">
                     {formData.logo ? formData.logo.name : 'Arraste e solte o arquivo aqui'}

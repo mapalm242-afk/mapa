@@ -10,6 +10,7 @@ import {
   type EmpresaRow,
 } from '../services/empresas';
 import { fetchResumoRisco } from '../services/dashboard';
+import { criarConvite } from '../services/convites';
 
 interface EmpresaView {
   id: string;
@@ -104,6 +105,25 @@ export function SuperAdminPage() {
   const queryClient = useQueryClient();
   const [showNovoClienteModal, setShowNovoClienteModal] = useState(false);
   const [qrEmpresa, setQrEmpresa] = useState<{ nome: string; setores: { id: string; name: string }[] } | null>(null);
+  const [linkGerado, setLinkGerado] = useState('');
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [gerandoLink, setGerandoLink] = useState(false);
+
+  const handleGerarLink = async () => {
+    setShowLinkModal(true);
+    setLinkGerado('');
+    setGerandoLink(true);
+    try {
+      const token = await criarConvite();
+      setLinkGerado(`${window.location.origin}/cadastro?token=${token}`);
+    } catch {
+      setLinkGerado('erro');
+    } finally {
+      setGerandoLink(false);
+    }
+  };
+
+  const fecharLinkModal = () => { setShowLinkModal(false); setLinkGerado(''); };
 
   const { data, isLoading: loading } = useQuery({
     queryKey: ['superAdminData'],
@@ -213,6 +233,13 @@ export function SuperAdminPage() {
               {totalAlertas > 0 && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{totalAlertas}</span>
               )}
+            </button>
+            <button
+              onClick={handleGerarLink}
+              className="px-5 py-2.5 rounded-xl font-bold text-sm border-2 border-teal-600 text-teal-600 hover:bg-teal-50 transition-all flex items-center gap-2"
+            >
+              <span className="material-symbols-rounded">link</span>
+              Gerar Link
             </button>
             <button
               onClick={() => setShowNovoClienteModal(true)}
@@ -470,6 +497,51 @@ export function SuperAdminPage() {
                 Imprimir Todos
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Link gerado */}
+      {showLinkModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg p-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">Link de Cadastro</h2>
+              <button onClick={fecharLinkModal} className="text-slate-400 hover:text-slate-600">
+                <span className="material-symbols-rounded">close</span>
+              </button>
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              Envie este link para a empresa preencher os próprios dados. Expira em <strong>7 dias</strong> e só pode ser usado <strong>uma vez</strong>.
+            </p>
+
+            {gerandoLink && (
+              <div className="flex items-center gap-3 h-11 px-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+                <div className="w-4 h-4 border-2 border-slate-300 border-t-teal-500 rounded-full animate-spin" />
+                <span className="text-sm text-slate-400">Gerando link...</span>
+              </div>
+            )}
+
+            {!gerandoLink && linkGerado === 'erro' && (
+              <p className="text-red-500 text-sm">Erro ao gerar link. Feche e tente novamente.</p>
+            )}
+
+            {!gerandoLink && linkGerado && linkGerado !== 'erro' && (
+              <div className="flex gap-2">
+                <input readOnly value={linkGerado}
+                  className="flex-1 h-11 px-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-300 font-mono" />
+                <button onClick={() => navigator.clipboard.writeText(linkGerado)}
+                  className="h-11 px-4 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-sm flex items-center gap-1 transition-all">
+                  <span className="material-symbols-rounded text-sm">content_copy</span>
+                  Copiar
+                </button>
+              </div>
+            )}
+
+            <button onClick={fecharLinkModal}
+              className="mt-6 w-full h-11 border-2 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+              Fechar
+            </button>
           </div>
         </div>
       )}

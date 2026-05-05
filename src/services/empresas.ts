@@ -23,6 +23,26 @@ export async function createEmpresa(nome_fantasia: string, cnpj: string) {
   return data;
 }
 
+export async function uploadEmpresaLogo(empresaId: string, file: File): Promise<string> {
+  const ext = file.name.split('.').pop();
+  const path = `empresas/${empresaId}/logo.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('logos')
+    .upload(path, file, { upsert: true });
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage.from('logos').getPublicUrl(path);
+
+  const { error: updateError } = await supabase
+    .from('empresas')
+    .update({ logo_url: data.publicUrl })
+    .eq('id', empresaId);
+  if (updateError) throw updateError;
+
+  return data.publicUrl;
+}
+
 export async function fetchDepartments(empresaId?: string) {
   let query = supabase.from('departments').select('id, name, empresa_id');
   if (empresaId) query = query.eq('empresa_id', empresaId);

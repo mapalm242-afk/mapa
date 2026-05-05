@@ -15,6 +15,7 @@ import { FinanceiroPage } from './pages/FinanceiroPage';
 import { NewClientPage } from './pages/NewClientPage';
 import { ValidacaoPage } from './pages/ValidacaoPage';
 import { ValidacaoFormPage } from './pages/ValidacaoFormPage';
+import { CadastroEmpresaPage } from './pages/CadastroEmpresaPage';
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
           {/* Public routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/survey" element={<SurveyPage />} />
+          <Route path="/cadastro" element={<CadastroEmpresaPage />} />
 
           {/* Protected routes */}
           <Route
