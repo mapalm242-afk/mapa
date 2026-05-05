@@ -15,6 +15,8 @@ import { FinanceiroPage } from './pages/FinanceiroPage';
 import { NewClientPage } from './pages/NewClientPage';
 import { ValidacaoPage } from './pages/ValidacaoPage';
 import { ValidacaoFormPage } from './pages/ValidacaoFormPage';
+import { PlanoAcaoPage } from './pages/PlanoAcaoPage';
+import { PlanoAcaoFormPage } from './pages/PlanoAcaoFormPage';
 import { CadastroEmpresaPage } from './pages/CadastroEmpresaPage';
 
 function App() {
@@ -106,6 +108,30 @@ function App() {
             element={
               <ProtectedRoute>
                 <ValidacaoFormPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/plano-acao"
+            element={
+              <ProtectedRoute>
+                <PlanoAcaoPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/plano-acao/novo"
+            element={
+              <ProtectedRoute>
+                <PlanoAcaoFormPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/plano-acao/:id"
+            element={
+              <ProtectedRoute>
+                <PlanoAcaoFormPage />
               </ProtectedRoute>
             }
           />

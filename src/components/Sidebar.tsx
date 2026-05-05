@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   ClipboardCheck,
+  ListChecks,
 } from 'lucide-react';
 
 export function Sidebar() {
@@ -48,6 +49,7 @@ export function Sidebar() {
     { label: 'Setores', icon: Building2, path: '/setores' },
     { label: 'Relatórios', icon: FileBarChart, path: '/reports' },
     { label: 'Validação', icon: ClipboardCheck, path: '/validacao' },
+    { label: 'Plano de Ação', icon: ListChecks, path: '/plano-acao' },
     { label: 'Configurações', icon: Settings, path: '/settings' },
     // Itens exclusivos do admin (aparecem no fim do menu)
     ...(user?.role === 'admin'
@@ -71,8 +73,7 @@ export function Sidebar() {
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          className="md:hidden fixed top-4 left-4 z-40 w-11 h-11 rounded-xl shadow-lg flex items-center justify-center text-white"
-          style={{ backgroundColor: '#2D5A5A' }}
+          className="md:hidden fixed top-4 left-4 z-40 w-11 h-11 rounded-xl shadow-lg flex items-center justify-center text-white bg-[#2D5A5A] dark:bg-slate-800"
           aria-label="Abrir menu"
         >
           <Menu size={22} />
@@ -96,9 +97,9 @@ export function Sidebar() {
           fixed md:sticky top-0 left-0 z-50
           h-screen w-72 flex flex-col shrink-0
           transform transition-transform duration-300 ease-in-out
+          bg-[#2D5A5A] dark:bg-slate-900
           ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         `}
-        style={{ backgroundColor: '#2D5A5A' }}
       >
         {/* Logo + Empresa */}
         <div className="p-6 flex flex-col gap-4 border-b border-white/10">
@@ -136,10 +137,9 @@ export function Sidebar() {
                 onClick={() => navigate(item.path)}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all cursor-pointer ${
                   isActive(item.path)
-                    ? 'text-white shadow-lg'
-                    : 'text-white/60 hover:text-white hover:bg-white/10'
+                    ? 'bg-[#009B9B] dark:bg-[#007A7A] text-white shadow-lg'
+                    : 'text-white/60 hover:text-white hover:bg-white/10 dark:hover:bg-white/5'
                 }`}
-                style={isActive(item.path) ? { backgroundColor: '#009B9B' } : {}}
               >
                 <Icon size={20} strokeWidth={isActive(item.path) ? 2.5 : 2} />
                 <span className="font-semibold text-sm">{item.label}</span>
@@ -153,8 +153,7 @@ export function Sidebar() {
           {/* Generate Report Button */}
           <button
             onClick={() => navigate('/reports')}
-            className="w-full px-4 py-3 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all"
-            style={{ backgroundColor: '#009B9B' }}
+            className="w-full px-4 py-3 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all bg-[#009B9B] hover:bg-[#008585] dark:bg-[#007A7A] dark:hover:bg-[#006666]"
           >
             <FileText size={18} />
             Gerar Relatório PGR
@@ -162,7 +161,7 @@ export function Sidebar() {
 
           {/* User Card */}
           <div className="flex items-center gap-3 p-3 rounded-xl bg-white/10">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0" style={{ backgroundColor: '#009B9B' }}>
+            <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 bg-[#009B9B] dark:bg-[#007A7A]">
               {displayName.charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 overflow-hidden">

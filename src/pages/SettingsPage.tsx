@@ -1,10 +1,63 @@
 import { useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import { Sidebar } from '../components/Sidebar';
+import { supabase } from '../lib/supabase';
 
 export function SettingsPage() {
   const { theme, setTheme } = useTheme();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('geral');
+
+  // ── Alterar senha ──────────────────────────────────────────
+  const [senhaAtual, setSenhaAtual] = useState('');
+  const [novaSenha, setNovaSenha] = useState('');
+  const [confirmarSenha, setConfirmarSenha] = useState('');
+  const [senhaStatus, setSenhaStatus] = useState<{ tipo: 'sucesso' | 'erro'; msg: string } | null>(null);
+  const [salvandoSenha, setSalvandoSenha] = useState(false);
+
+  const handleAlterarSenha = async () => {
+    setSenhaStatus(null);
+
+    if (!senhaAtual || !novaSenha || !confirmarSenha) {
+      setSenhaStatus({ tipo: 'erro', msg: 'Preencha todos os campos.' });
+      return;
+    }
+    if (novaSenha.length < 6) {
+      setSenhaStatus({ tipo: 'erro', msg: 'A nova senha deve ter pelo menos 6 caracteres.' });
+      return;
+    }
+    if (novaSenha !== confirmarSenha) {
+      setSenhaStatus({ tipo: 'erro', msg: 'A nova senha e a confirmação não coincidem.' });
+      return;
+    }
+
+    setSalvandoSenha(true);
+    try {
+      // Verifica a senha atual tentando reautenticar
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email: user?.email ?? '',
+        password: senhaAtual,
+      });
+      if (loginError) {
+        setSenhaStatus({ tipo: 'erro', msg: 'Senha atual incorreta.' });
+        return;
+      }
+
+      // Atualiza para a nova senha
+      const { error: updateError } = await supabase.auth.updateUser({ password: novaSenha });
+      if (updateError) throw updateError;
+
+      setSenhaStatus({ tipo: 'sucesso', msg: 'Senha alterada com sucesso!' });
+      setSenhaAtual('');
+      setNovaSenha('');
+      setConfirmarSenha('');
+    } catch {
+      setSenhaStatus({ tipo: 'erro', msg: 'Erro ao alterar senha. Tente novamente.' });
+    } finally {
+      setSalvandoSenha(false);
+    }
+  };
 
   const handleThemeToggle = () => {
     if (theme === 'system' || theme === 'light') {
@@ -164,23 +217,44 @@ export function SettingsPage() {
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Alterar Senha</h3>
                 <div className="space-y-4">
-                  <input 
-                    type="password" 
-                    placeholder="Senha atual" 
+                  <input
+                    type="password"
+                    placeholder="Senha atual"
+                    value={senhaAtual}
+                    onChange={e => setSenhaAtual(e.target.value)}
                     className="w-full px-4 py-2 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-500 focus:ring-2 focus:ring-primary/50 transition-all"
                   />
-                  <input 
-                    type="password" 
-                    placeholder="Nova senha" 
+                  <input
+                    type="password"
+                    placeholder="Nova senha (mínimo 6 caracteres)"
+                    value={novaSenha}
+                    onChange={e => setNovaSenha(e.target.value)}
                     className="w-full px-4 py-2 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-500 focus:ring-2 focus:ring-primary/50 transition-all"
                   />
-                  <input 
-                    type="password" 
-                    placeholder="Confirmar nova senha" 
+                  <input
+                    type="password"
+                    placeholder="Confirmar nova senha"
+                    value={confirmarSenha}
+                    onChange={e => setConfirmarSenha(e.target.value)}
                     className="w-full px-4 py-2 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-500 focus:ring-2 focus:ring-primary/50 transition-all"
                   />
-                  <button className="w-full px-4 py-2.5 bg-primary hover:bg-blue-700 text-white font-bold rounded-xl transition-all">
-                    Atualizar Senha
+
+                  {senhaStatus && (
+                    <p className={`text-sm font-medium px-3 py-2 rounded-lg ${
+                      senhaStatus.tipo === 'sucesso'
+                        ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                        : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'
+                    }`}>
+                      {senhaStatus.msg}
+                    </p>
+                  )}
+
+                  <button
+                    onClick={handleAlterarSenha}
+                    disabled={salvandoSenha}
+                    className="w-full px-4 py-2.5 bg-[#009B9B] hover:bg-[#008585] disabled:opacity-50 text-white font-bold rounded-xl transition-all"
+                  >
+                    {salvandoSenha ? 'Salvando...' : 'Atualizar Senha'}
                   </button>
                 </div>
               </div>
