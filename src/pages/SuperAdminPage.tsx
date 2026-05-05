@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
@@ -108,6 +108,17 @@ export function SuperAdminPage() {
   const [linkGerado, setLinkGerado] = useState('');
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [gerandoLink, setGerandoLink] = useState(false);
+  const [linkProgress, setLinkProgress] = useState(0);
+
+  useEffect(() => {
+    if (!gerandoLink) { setLinkProgress(0); return; }
+    const start = Date.now();
+    const id = setInterval(() => {
+      const t = Math.min((Date.now() - start) / 9000, 1);
+      setLinkProgress(Math.round((1 - Math.pow(1 - t, 2)) * 88));
+    }, 80);
+    return () => clearInterval(id);
+  }, [gerandoLink]);
 
   const handleGerarLink = async () => {
     setShowLinkModal(true);
@@ -123,7 +134,7 @@ export function SuperAdminPage() {
     }
   };
 
-  const fecharLinkModal = () => { setShowLinkModal(false); setLinkGerado(''); };
+  const fecharLinkModal = () => { setShowLinkModal(false); setLinkGerado(''); setGerandoLink(false); };
 
   const { data, isLoading: loading } = useQuery({
     queryKey: ['superAdminData'],
@@ -516,9 +527,27 @@ export function SuperAdminPage() {
             </p>
 
             {gerandoLink && (
-              <div className="flex items-center gap-3 h-11 px-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
-                <div className="w-4 h-4 border-2 border-slate-300 border-t-teal-500 rounded-full animate-spin" />
-                <span className="text-sm text-slate-400">Gerando link...</span>
+              <div className="flex flex-col items-center gap-3 py-2">
+                <div className="relative w-28 h-28">
+                  <svg className="w-full h-full -rotate-90" viewBox="0 0 88 88">
+                    <circle cx="44" cy="44" r="38" fill="#0f2020" stroke="#0f2020" strokeWidth="2" />
+                    <circle cx="44" cy="44" r="38" fill="none" stroke="#164444" strokeWidth="8" />
+                    <circle
+                      cx="44" cy="44" r="38"
+                      fill="none"
+                      stroke="#009B9B"
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                      strokeDasharray="238.76"
+                      strokeDashoffset={238.76 * (1 - linkProgress / 100)}
+                      style={{ transition: 'stroke-dashoffset 0.2s ease-out', filter: 'drop-shadow(0 0 6px #009B9B88)' }}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-lg font-extrabold" style={{ color: '#009B9B' }}>{linkProgress}%</span>
+                  </div>
+                </div>
+                <p className="text-sm text-slate-500 font-medium">Gerando link seguro...</p>
               </div>
             )}
 
