@@ -177,7 +177,7 @@ export function CadastroEmpresaPage() {
   <div class="footer">
     Gerado em ${new Date().toLocaleDateString('pt-BR')} &bull; M.A.P.A. &mdash; Saúde Mental Ocupacional &bull; LM Consultoria
   </div>
-<script>window.onload = function() { window.print(); }<\/script>
+<script>window.onload = function() { window.print(); }</script>
 </body></html>`;
     const w = window.open('', '_blank');
     if (w) { w.document.write(html); w.document.close(); }

@@ -38,22 +38,29 @@ export async function fetchSetoresComStatus(empresaId?: string | null): Promise<
   if (deptErr) throw deptErr;
   if (!depts || depts.length === 0) return [];
 
-  // 2. Pega respondents de todos esses setores de uma vez
   const deptIds = depts.map(d => d.id);
-  const { data: resps, error: respErr } = await supabase
-    .from('respondents')
-    .select('id, department_id, created_at')
-    .in('department_id', deptIds);
-  if (respErr) throw respErr;
+  const deptNames = depts.map(d => d.name);
 
-  // 3. Pega o risco máximo por setor/subescala (vw_pgr_completo já entrega calculado)
+  // 2 + 3. Respondents e PGR em paralelo
   let pgrQuery = supabase
     .from('vw_pgr_completo')
-    .select('empresa_id, grupo_homogeneo, grau_risco');
+    .select('empresa_id, grupo_homogeneo, grau_risco')
+    .in('grupo_homogeneo', deptNames);
   if (empresaId) pgrQuery = pgrQuery.eq('empresa_id', empresaId);
 
-  const { data: pgr, error: pgrErr } = await pgrQuery;
-  if (pgrErr) throw pgrErr;
+  const [respResult, pgrResult] = await Promise.all([
+    supabase
+      .from('respondents')
+      .select('id, department_id, created_at')
+      .in('department_id', deptIds),
+    pgrQuery,
+  ]);
+
+  if (respResult.error) throw respResult.error;
+  if (pgrResult.error) throw pgrResult.error;
+
+  const resps = respResult.data;
+  const pgr = pgrResult.data;
 
   // 4. Agrega tudo em memória
   const setoresMap = new Map<string, SetorStatus>();

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { LikertOption, LIKERT_CHOICES, type LikertValue } from './LikertOption';
+import { LikertOption, type LikertValue } from './LikertOption';
+import { LIKERT_CHOICES } from '../lib/likertChoices';
 
 interface QuestionCardProps {
   question: string;

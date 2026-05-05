@@ -39,7 +39,7 @@ export function SetoresPage() {
     </div>`).join('')}
   </div>
   <div class="footer">Gerado em ${new Date().toLocaleDateString('pt-BR')} &bull; M.A.P.A.</div>
-<script>window.onload=function(){window.print();}<\/script>
+<script>window.onload=function(){window.print();}</script>
 </body></html>`;
     const w = window.open('', '_blank');
     if (w) { w.document.write(html); w.document.close(); }

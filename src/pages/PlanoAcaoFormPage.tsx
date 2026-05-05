@@ -46,6 +46,7 @@ export function PlanoAcaoFormPage() {
   const [errors, setErrors] = useState<Partial<Record<keyof PlanoAcaoForm, string>>>({});
 
   // Dados auxiliares
+  const [empresas, setEmpresas] = useState<{ id: string; nome_fantasia: string }[]>([]);
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
   const [subescalas, setSubescalas] = useState<string[]>([]);
   const [subescalaPersonalizada, setSubescalaPersonalizada] = useState('');
@@ -56,6 +57,16 @@ export function PlanoAcaoFormPage() {
 
   // Nome do setor selecionado (necessário para buscar no vw_pgr_completo)
   const deptSelecionado = departments.find(d => d.id === form.department_id);
+
+  // ── Carrega lista de empresas para admin ─────────────────────────────────
+  useEffect(() => {
+    if (shouldFilter) return;
+    supabase
+      .from('empresas')
+      .select('id, nome_fantasia')
+      .order('nome_fantasia')
+      .then(({ data }) => setEmpresas(data || []));
+  }, [shouldFilter]);
 
   // ── Carrega setores cadastrados pela empresa ─────────────────────────────
   useEffect(() => {
@@ -152,13 +163,14 @@ export function PlanoAcaoFormPage() {
 
   const validate = () => {
     const e: Partial<Record<keyof PlanoAcaoForm, string>> = {};
+    if (!shouldFilter && !form.empresa_id) e.empresa_id = 'Selecione uma empresa';
     if (!form.department_id) e.department_id = 'Selecione um setor';
     if (!form.acao_planejada.trim()) e.acao_planejada = 'Descreva o que está sendo feito';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = (e: React.SyntheticEvent) => {
+  const handleSubmit = (e: { preventDefault(): void }) => {
     e.preventDefault();
     if (!validate()) return;
     saveMutation.mutate();
@@ -195,6 +207,34 @@ export function PlanoAcaoFormPage() {
             {/* ── Identificação ─────────────────────────────────────── */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 p-6 space-y-4">
               <h2 className="text-base font-bold text-slate-800 dark:text-white">Identificação</h2>
+
+              {/* Empresa — visível apenas para admin */}
+              {!shouldFilter && (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Empresa <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={form.empresa_id}
+                    onChange={e => {
+                      setForm(f => ({ ...f, empresa_id: e.target.value, department_id: '', subescala: '', medida_sugerida: '' }));
+                      setDepartments([]);
+                      setSubescalas([]);
+                    }}
+                    className={`w-full px-4 py-3 rounded-xl border text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#009B9B] transition-all ${
+                      errors.empresa_id ? 'border-red-400' : 'border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    <option value="">Selecione a empresa...</option>
+                    {empresas.map(emp => (
+                      <option key={emp.id} value={emp.id}>{emp.nome_fantasia}</option>
+                    ))}
+                  </select>
+                  {errors.empresa_id && (
+                    <p className="text-xs text-red-500 mt-1">{errors.empresa_id}</p>
+                  )}
+                </div>
+              )}
 
               {/* Setor */}
               <div>

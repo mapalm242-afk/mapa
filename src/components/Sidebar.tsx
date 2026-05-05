@@ -60,7 +60,10 @@ export function Sidebar() {
       : []),
   ];
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) =>
+    path === '/overview'
+      ? location.pathname === path
+      : location.pathname.startsWith(path);
 
   const displayName = user?.email?.split('@')[0] || 'Usuário';
   const roleLabel = user?.role === 'admin' ? 'Administrador' : 'Gestor';
@@ -132,10 +135,11 @@ export function Sidebar() {
           {menuItems.map((item) => {
             const Icon = item.icon;
             return (
-              <a
+              <button
                 key={item.path}
+                type="button"
                 onClick={() => navigate(item.path)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all cursor-pointer ${
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all cursor-pointer ${
                   isActive(item.path)
                     ? 'bg-[#009B9B] dark:bg-[#007A7A] text-white shadow-lg'
                     : 'text-white/60 hover:text-white hover:bg-white/10 dark:hover:bg-white/5'
@@ -143,7 +147,7 @@ export function Sidebar() {
               >
                 <Icon size={20} strokeWidth={isActive(item.path) ? 2.5 : 2} />
                 <span className="font-semibold text-sm">{item.label}</span>
-              </a>
+              </button>
             );
           })}
         </nav>
