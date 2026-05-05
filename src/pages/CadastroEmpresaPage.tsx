@@ -22,10 +22,15 @@ export function CadastroEmpresaPage() {
   const [novoSetor, setNovoSetor] = useState('');
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [step, setStep] = useState('');
   const [error, setError] = useState('');
   const [concluido, setConcluido] = useState(false);
   const [setoresCriados, setSetoresCriados] = useState<SetorCriado[]>([]);
+
+  type StepStatus = 'pending' | 'running' | 'done' | 'error' | 'skipped';
+  const [steps, setSteps] = useState<{ label: string; status: StepStatus }[]>([]);
+
+  const setStepStatus = (index: number, status: StepStatus) =>
+    setSteps(prev => prev.map((s, i) => i === index ? { ...s, status } : s));
 
   useEffect(() => {
     if (!token) { setTokenErro('Link inválido. Solicite um novo link ao administrador.'); setVerificando(false); return; }
@@ -63,42 +68,64 @@ export function CadastroEmpresaPage() {
     }
     if (formData.senha.length < 6) { setError('A senha deve ter no mínimo 6 caracteres.'); return; }
 
+    const initialSteps = [
+      { label: 'Criando empresa',        status: 'pending' as StepStatus },
+      { label: 'Enviando logotipo',      status: formData.logo ? 'pending' as StepStatus : 'skipped' as StepStatus },
+      { label: 'Cadastrando setores',    status: 'pending' as StepStatus },
+      { label: 'Criando acesso gestor',  status: 'pending' as StepStatus },
+      { label: 'Salvando perfil',        status: 'pending' as StepStatus },
+      { label: 'Finalizando',            status: 'pending' as StepStatus },
+    ];
+    setSteps(initialSteps);
     setSaving(true);
+
     try {
-      setStep('Criando empresa...');
+      setStepStatus(0, 'running');
       const empresa = await createEmpresa(formData.nomeFantasia, formData.cnpj);
+      setStepStatus(0, 'done');
 
       if (formData.logo) {
-        setStep('Enviando logotipo...');
-        try { await uploadEmpresaLogo(empresa.id, formData.logo); } catch (e) { console.warn('Logo upload falhou:', e); }
+        setStepStatus(1, 'running');
+        try { await uploadEmpresaLogo(empresa.id, formData.logo); setStepStatus(1, 'done'); }
+        catch (e) { console.warn('Logo upload falhou:', e); setStepStatus(1, 'error'); }
       }
 
-      setStep('Criando departamentos...');
+      setStepStatus(2, 'running');
       const depts = await createDepartments(empresa.id, setores.map(s => s.nome));
       setSetoresCriados(depts.map(d => ({ id: d.id, nome: d.name })));
+      setStepStatus(2, 'done');
 
-      setStep('Criando usuário gestor...');
+      setStepStatus(3, 'running');
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.senha,
         options: { data: { role: 'gestor', empresa_id: empresa.id } },
       });
       if (authError) throw authError;
+      setStepStatus(3, 'done');
+
       if (authData.user) {
-        setStep('Salvando perfil...');
+        setStepStatus(4, 'running');
         await supabase.from('profiles').upsert({
           id: authData.user.id,
           email: formData.email,
           role: 'gestor',
           empresa_id: empresa.id,
         });
+        setStepStatus(4, 'done');
+      } else {
+        setStepStatus(4, 'skipped');
       }
 
-      setStep('Finalizando...');
+      setStepStatus(5, 'running');
       await marcarConviteUsado(token);
+      setStepStatus(5, 'done');
+
+      await new Promise(r => setTimeout(r, 600));
       setConcluido(true);
     } catch (err: unknown) {
       console.error('Erro no cadastro:', err);
+      setSteps(prev => prev.map(s => s.status === 'running' ? { ...s, status: 'error' } : s));
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('duplicate') || msg.includes('unique') || msg.includes('409'))
         setError('CNPJ ou e-mail já cadastrado no sistema.');
@@ -109,7 +136,7 @@ export function CadastroEmpresaPage() {
       else if (msg.includes('network') || msg.includes('fetch'))
         setError('Erro de conexão. Verifique sua internet e tente novamente.');
       else
-        setError(`Erro: ${msg}`);
+        setError(`Erro na etapa: ${msg}`);
     } finally {
       setSaving(false);
     }
@@ -331,13 +358,37 @@ export function CadastroEmpresaPage() {
           </div>
         </div>
 
+        {/* Painel de progresso */}
+        {saving && steps.length > 0 && (
+          <div className="mx-6 mb-4 bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
+            {steps.map((s, i) => (
+              s.status === 'skipped' ? null : (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="w-5 h-5 shrink-0 flex items-center justify-center">
+                    {s.status === 'done'    && <svg className="w-5 h-5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>}
+                    {s.status === 'running' && <div className="w-4 h-4 border-2 border-slate-300 border-t-teal-500 rounded-full animate-spin" />}
+                    {s.status === 'error'   && <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>}
+                    {s.status === 'pending' && <div className="w-2 h-2 rounded-full bg-slate-300 mx-auto" />}
+                  </div>
+                  <span className={`text-sm font-medium ${
+                    s.status === 'done'    ? 'text-teal-600' :
+                    s.status === 'running' ? 'text-slate-800' :
+                    s.status === 'error'   ? 'text-red-500' :
+                    'text-slate-400'
+                  }`}>{s.label}</span>
+                </div>
+              )
+            ))}
+          </div>
+        )}
+
         {/* Footer */}
         <div className="p-6 border-t border-slate-100 bg-slate-50">
           <button onClick={handleSalvar} disabled={saving}
             className="w-full h-12 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70"
             style={{ backgroundColor: '#009B9B' }}>
             {saving
-              ? <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span className="text-sm">{step}</span></>
+              ? <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span className="text-sm">Processando...</span></>
               : <><span>Finalizar Cadastro</span><span className="material-symbols-rounded">check_circle</span></>
             }
           </button>

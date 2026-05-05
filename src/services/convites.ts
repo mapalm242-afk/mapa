@@ -1,13 +1,12 @@
 import { supabase } from '../lib/supabase';
 
 export async function criarConvite(): Promise<string> {
-  const { data, error } = await supabase
+  const token = crypto.randomUUID();
+  const { error } = await supabase
     .from('convites')
-    .insert({})
-    .select('token')
-    .single();
+    .insert({ token });
   if (error) throw error;
-  return data.token as string;
+  return token;
 }
 
 export async function validarConvite(token: string) {
