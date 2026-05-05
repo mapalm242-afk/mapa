@@ -6,7 +6,44 @@ import { fetchSetoresComStatus } from '../services/setores';
 
 export function SetoresPage() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [qrSetor, setQrSetor] = useState<{ id: string; nome: string } | null>(null);
   const { empresaId, shouldFilter } = useEmpresaFilter();
+
+  const gerarQRCodeUrl = (id: string, size = 200) => {
+    const url = `${window.location.origin}/survey?setor=${id}`;
+    return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(url)}`;
+  };
+
+  const imprimirTodosQRCodes = (setoresList: { id: string; nome: string }[]) => {
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>QR Codes</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',Arial,sans-serif; padding:40px; color:#1e293b; }
+  .header { text-align:center; margin-bottom:40px; border-bottom:3px solid #2D5A5A; padding-bottom:20px; }
+  .header h1 { font-size:28px; color:#2D5A5A; }
+  .header p { font-size:14px; color:#64748b; }
+  .grid { display:grid; grid-template-columns:repeat(2,1fr); gap:32px; }
+  .card { border:2px solid #e2e8f0; border-radius:16px; padding:24px; text-align:center; page-break-inside:avoid; }
+  .card img { width:180px; height:180px; margin:0 auto 16px; display:block; }
+  .card h3 { font-size:18px; font-weight:bold; color:#2D5A5A; }
+  .card .url { font-size:9px; color:#94a3b8; word-break:break-all; margin-top:8px; }
+  .footer { text-align:center; margin-top:40px; font-size:11px; color:#94a3b8; border-top:1px solid #e2e8f0; padding-top:16px; }
+  @media print { body { padding:20px; } }
+</style></head><body>
+  <div class="header"><h1>M.A.P.A.</h1><p>QR Codes dos Setores</p></div>
+  <div class="grid">
+    ${setoresList.map(s => `<div class="card">
+      <img src="${gerarQRCodeUrl(s.id, 300)}" alt="${s.nome}" />
+      <h3>${s.nome}</h3>
+      <div class="url">${window.location.origin}/survey?setor=${s.id}</div>
+    </div>`).join('')}
+  </div>
+  <div class="footer">Gerado em ${new Date().toLocaleDateString('pt-BR')} &bull; M.A.P.A.</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+  };
   const filterId = shouldFilter ? empresaId : null;
 
   const { data: setores = [], isLoading: loading, error: queryError } = useQuery({
@@ -60,7 +97,7 @@ export function SetoresPage() {
             <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Setores</h2>
             <p className="text-sm text-slate-600 dark:text-slate-500">Gestão de setores e avaliações</p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <div className="relative hidden lg:block">
               <span className="material-symbols-rounded absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
               <input
@@ -71,6 +108,13 @@ export function SetoresPage() {
                 type="text"
               />
             </div>
+            <button
+              onClick={() => imprimirTodosQRCodes(filteredSetores.map(s => ({ id: s.id, nome: s.nome })))}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm border-2 border-teal-600 text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-all"
+            >
+              <span className="material-symbols-rounded text-xl">print</span>
+              Imprimir QR Codes
+            </button>
           </div>
         </header>
 
@@ -144,6 +188,7 @@ export function SetoresPage() {
                         <th className="px-8 py-4 text-left text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest">Status de Coleta</th>
                         <th className="px-8 py-4 text-left text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest">Progresso</th>
                         <th className="px-8 py-4 text-left text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest">Última Atualização</th>
+                        <th className="px-8 py-4 text-left text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest">QR Code</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -171,6 +216,15 @@ export function SetoresPage() {
                             <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{setor.percentual_coleta}%</p>
                           </td>
                           <td className="px-8 py-5 text-sm text-slate-600 dark:text-slate-400">{formatDate(setor.ultima_atualizacao)}</td>
+                          <td className="px-8 py-5">
+                            <button
+                              onClick={() => setQrSetor({ id: setor.id, nome: setor.nome })}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border border-teal-500 text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-all"
+                            >
+                              <span className="material-symbols-rounded text-sm">qr_code</span>
+                              Ver QR
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -188,6 +242,41 @@ export function SetoresPage() {
           )}
         </div>
       </main>
+
+      {/* Modal QR Code do setor */}
+      {qrSetor && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm p-8 flex flex-col items-center gap-6">
+            <div className="flex items-center justify-between w-full">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">{qrSetor.nome}</h2>
+              <button onClick={() => setQrSetor(null)} className="text-slate-400 hover:text-slate-600">
+                <span className="material-symbols-rounded">close</span>
+              </button>
+            </div>
+            <div className="bg-white p-4 rounded-xl border-2 border-teal-200">
+              <img src={gerarQRCodeUrl(qrSetor.id, 250)} alt={`QR - ${qrSetor.nome}`} className="w-56 h-56" />
+            </div>
+            <p className="text-xs text-slate-400 font-mono text-center break-all">{window.location.origin}/survey?setor={qrSetor.id}</p>
+            <div className="flex gap-3 w-full">
+              <a
+                href={gerarQRCodeUrl(qrSetor.id, 400)}
+                download={`qrcode-${qrSetor.nome}.png`}
+                className="flex-1 py-2.5 border-2 border-teal-600 text-teal-600 font-bold rounded-xl text-sm flex items-center justify-center gap-1 hover:bg-teal-50 transition-all"
+              >
+                <span className="material-symbols-rounded text-sm">download</span>
+                Baixar
+              </a>
+              <button
+                onClick={() => imprimirTodosQRCodes([qrSetor])}
+                className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-1 transition-all"
+              >
+                <span className="material-symbols-rounded text-sm">print</span>
+                Imprimir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
