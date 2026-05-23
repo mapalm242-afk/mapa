@@ -7,7 +7,7 @@ import { fetchSetoresComStatus } from '../services/setores';
 export function SetoresPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [qrSetor, setQrSetor] = useState<{ id: string; nome: string } | null>(null);
-  const { empresaId, shouldFilter } = useEmpresaFilter();
+  const { empresaId, shouldFilter, ready } = useEmpresaFilter();
 
   const gerarQRCodeUrl = (id: string, size = 200) => {
     const url = `${window.location.origin}/survey?setor=${id}`;
@@ -49,6 +49,7 @@ export function SetoresPage() {
   const { data: setores = [], isLoading: loading, error: queryError } = useQuery({
     queryKey: ['setoresComStatus', filterId],
     queryFn: () => fetchSetoresComStatus(filterId),
+    enabled: ready,
   });
 
   const error = queryError ? 'Não foi possível carregar os setores.' : null;

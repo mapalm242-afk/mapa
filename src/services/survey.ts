@@ -20,13 +20,20 @@ export async function fetchQuestions(): Promise<Question[]> {
 }
 
 // setorId continua sendo o UUID de departments (o QR code nao muda)
+//
+// clientRequestId: UUID gerado no front e enviado em todas as tentativas
+// de submit. Se o servidor já gravou em uma tentativa anterior, retorna o
+// mesmo respondent_id em vez de duplicar (evita inflar adesão em retry
+// após timeout/erro de rede).
 export async function submitSurveyResponse(
   setorId: string,
-  answers: Record<string | number, number>
+  answers: Record<string | number, number>,
+  clientRequestId?: string,
 ) {
   const { error } = await supabase.rpc('insert_survey_response', {
-    p_department_id: setorId,
-    p_answers:       answers,
+    p_department_id:     setorId,
+    p_answers:           answers,
+    p_client_request_id: clientRequestId ?? null,
   });
   if (error) throw error;
 }

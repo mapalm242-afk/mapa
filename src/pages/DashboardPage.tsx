@@ -16,7 +16,7 @@ interface SetorCard {
 }
 
 export function DashboardPage() {
-  const { empresaId, shouldFilter } = useEmpresaFilter();
+  const { empresaId, shouldFilter, ready } = useEmpresaFilter();
   const { user } = useAuth();
   const [selectedSetor, setSelectedSetor] = useState<string | null>(null);
   const filterId = shouldFilter ? empresaId : null;
@@ -24,6 +24,7 @@ export function DashboardPage() {
   const { data: dados = [], isLoading: loading, error: queryError } = useQuery({
     queryKey: ['pgrCompleto', filterId],
     queryFn: () => fetchPgrCompleto(filterId),
+    enabled: ready,
   });
 
   const error = queryError ? 'Erro inesperado ao carregar dados.' : null;

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { setViewingEmpresa } from '../lib/useEmpresaFilter';
 import type { Session, AuthChangeEvent } from '@supabase/supabase-js';
 
 interface Profile {
@@ -113,6 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
+    setViewingEmpresa(null);
     queryClient.clear();
   };
 

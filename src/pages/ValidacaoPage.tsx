@@ -18,12 +18,13 @@ const severidadeLabel = (s: number | null) => {
 
 export function ValidacaoPage() {
   const navigate = useNavigate();
-  const { empresaId, shouldFilter } = useEmpresaFilter();
+  const { empresaId, shouldFilter, ready } = useEmpresaFilter();
   const filterId = shouldFilter ? empresaId : null;
 
   const { data: checklists = [], isLoading } = useQuery({
     queryKey: ['validacaoChecklists', filterId],
     queryFn: () => fetchChecklists(filterId),
+    enabled: ready,
   });
 
   const formatDate = (d: string) => {

@@ -9,21 +9,24 @@ import {
 
 export function OverviewPage() {
   const [searchTerm, setSearchTerm] = useState('');
-  const { empresaId, shouldFilter } = useEmpresaFilter();
+  const { empresaId, shouldFilter, ready } = useEmpresaFilter();
   const navigate = useNavigate();
   const filterId = shouldFilter ? empresaId : null;
 
   const { data: resumo = [], isLoading: l1, error: e1 } = useQuery({
     queryKey: ['resumoRisco', filterId],
     queryFn: () => fetchResumoRisco(filterId),
+    enabled: ready,
   });
   const { data: topRiscos = [], isLoading: l2 } = useQuery({
     queryKey: ['topRiscos', filterId],
     queryFn: () => fetchTopRiscos(filterId),
+    enabled: ready,
   });
   const { data: evolucao = [], isLoading: l3 } = useQuery({
     queryKey: ['evolucaoMensal', filterId],
     queryFn: () => fetchEvolucaoMensal(filterId),
+    enabled: ready,
   });
 
   const loading = l1 || l2 || l3;

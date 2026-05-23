@@ -17,7 +17,7 @@ const STATUS_ORDER: StatusPlano[] = ['planejado', 'em_andamento', 'concluido', '
 export function PlanoAcaoPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { empresaId, shouldFilter } = useEmpresaFilter();
+  const { empresaId, shouldFilter, ready } = useEmpresaFilter();
   const filterId = shouldFilter ? empresaId : null;
 
   const [filtroStatus, setFiltroStatus] = useState<StatusPlano | 'todos'>('todos');
@@ -26,6 +26,7 @@ export function PlanoAcaoPage() {
   const { data: planos = [], isLoading } = useQuery({
     queryKey: ['planosAcao', filterId],
     queryFn: () => fetchPlanosAcao(filterId),
+    enabled: ready,
   });
 
   const deleteMutation = useMutation({

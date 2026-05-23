@@ -9,21 +9,24 @@ import {
 } from '../services/reports';
 
 export function ReportsPage() {
-  const { empresaId, shouldFilter } = useEmpresaFilter();
+  const { empresaId, shouldFilter, ready } = useEmpresaFilter();
   const navigate = useNavigate();
   const filterId = shouldFilter ? empresaId : null;
 
   const { data: tendencia = [], isLoading: l1, error: e1 } = useQuery({
     queryKey: ['tendenciaRiscos', filterId],
     queryFn: () => fetchTendenciaRiscos(filterId),
+    enabled: ready,
   });
   const { data: historico = [], isLoading: l2 } = useQuery({
     queryKey: ['historicoColetas', filterId],
     queryFn: () => fetchHistoricoColetas(filterId),
+    enabled: ready,
   });
   const { data: stats = { total_coletas: 0, este_mes: 0, completa_pct: 0, ultimas_24h: 0 }, isLoading: l3 } = useQuery({
     queryKey: ['reportsStats', filterId],
     queryFn: () => fetchReportsStats(filterId),
+    enabled: ready,
   });
 
   const loading = l1 || l2 || l3;

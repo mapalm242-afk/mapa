@@ -28,6 +28,8 @@ export function SurveyPage() {
   const [direction, setDirection] = useState(1);
   const [setorNome, setSetorNome] = useState<string | null>(null);
   const [submitErrorMsg, setSubmitErrorMsg] = useState<string>('');
+  // ID estável por sessão da página — garante idempotência em retries
+  const [clientRequestId] = useState<string>(() => crypto.randomUUID());
 
   useEffect(() => {
     if (!setorId || setorId.trim() === '') {
@@ -53,7 +55,7 @@ export function SurveyPage() {
     setState('SUBMITTING');
     setSubmitErrorMsg('');
     try {
-      await submitSurveyResponse(setorId!, answersToSubmit);
+      await submitSurveyResponse(setorId!, answersToSubmit, clientRequestId);
       setState('COMPLETED');
     } catch (err) {
       console.error('Erro ao salvar respostas:', err);
@@ -146,6 +148,17 @@ export function SurveyPage() {
 
   if (state === 'COMPLETED') {
     return <CompletionScreen />;
+  }
+
+  // Guard: se chegou no estado QUESTIONNAIRE sem perguntas carregadas
+  // (race condition rara), não tenta renderizar — mostra loading.
+  if (!currentQuestion) {
+    return (
+      <div className="min-h-screen bg-background-light dark:bg-background-dark font-sans text-slate-900 dark:text-slate-100 flex flex-col items-center justify-center p-6">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-slate-500">Carregando perguntas...</p>
+      </div>
+    );
   }
 
   return (

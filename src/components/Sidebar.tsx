@@ -131,7 +131,7 @@ export function Sidebar() {
               <p className="text-sm font-bold text-white truncate">{empresaNome}</p>
             </div>
           )}
-          {isAdmin && viewingEmpresaId && (
+          {isAdmin && viewingEmpresaId && location.pathname !== '/super-admin' && (
             <div className="px-3 py-2 rounded-lg bg-amber-500/20 border border-amber-300/40">
               <p className="text-[10px] text-amber-100 uppercase tracking-widest font-bold">Visualizando empresa</p>
               <div className="flex items-center justify-between gap-2 mt-1">
