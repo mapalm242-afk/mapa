@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
@@ -11,6 +11,7 @@ import {
 } from '../services/empresas';
 import { fetchResumoRisco } from '../services/dashboard';
 import { setViewingEmpresa } from '../lib/useEmpresaFilter';
+import { criarConvite } from '../services/convites';
 
 interface EmpresaView {
   id: string;
@@ -105,6 +106,36 @@ export function SuperAdminPage() {
   const queryClient = useQueryClient();
   const [showNovoClienteModal, setShowNovoClienteModal] = useState(false);
   const [qrEmpresa, setQrEmpresa] = useState<{ nome: string; setores: { id: string; name: string }[] } | null>(null);
+  const [linkGerado, setLinkGerado] = useState('');
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [gerandoLink, setGerandoLink] = useState(false);
+  const [linkProgress, setLinkProgress] = useState(0);
+
+  useEffect(() => {
+    if (!gerandoLink) { setLinkProgress(0); return; }
+    const start = Date.now();
+    const id = setInterval(() => {
+      const t = Math.min((Date.now() - start) / 9000, 1);
+      setLinkProgress(Math.round((1 - Math.pow(1 - t, 2)) * 88));
+    }, 80);
+    return () => clearInterval(id);
+  }, [gerandoLink]);
+
+  const handleGerarLink = async () => {
+    setShowLinkModal(true);
+    setLinkGerado('');
+    setGerandoLink(true);
+    try {
+      const token = await criarConvite();
+      setLinkGerado(`${window.location.origin}/cadastro?token=${token}`);
+    } catch {
+      setLinkGerado('erro');
+    } finally {
+      setGerandoLink(false);
+    }
+  };
+
+  const fecharLinkModal = () => { setShowLinkModal(false); setLinkGerado(''); setGerandoLink(false); };
 
   const { data, isLoading: loading } = useQuery({
     queryKey: ['superAdminData'],
@@ -170,7 +201,7 @@ export function SuperAdminPage() {
   <div class="footer">
     Gerado em ${new Date().toLocaleDateString('pt-BR')} &bull; M.A.P.A. &mdash; Saúde Mental Ocupacional &bull; LM Consultoria
   </div>
-<script>window.onload = function() { window.print(); }<\/script>
+<script>window.onload = function() { window.print(); }</script>
 </body></html>`;
     const w = window.open('', '_blank');
     if (w) { w.document.write(html); w.document.close(); }
@@ -214,6 +245,13 @@ export function SuperAdminPage() {
               {totalAlertas > 0 && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{totalAlertas}</span>
               )}
+            </button>
+            <button
+              onClick={handleGerarLink}
+              className="px-5 py-2.5 rounded-xl font-bold text-sm border-2 border-teal-600 text-teal-600 hover:bg-teal-50 transition-all flex items-center gap-2"
+            >
+              <span className="material-symbols-rounded">link</span>
+              Gerar Link
             </button>
             <button
               onClick={() => setShowNovoClienteModal(true)}
@@ -474,6 +512,69 @@ export function SuperAdminPage() {
                 Imprimir Todos
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Link gerado */}
+      {showLinkModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg p-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">Link de Cadastro</h2>
+              <button onClick={fecharLinkModal} className="text-slate-400 hover:text-slate-600">
+                <span className="material-symbols-rounded">close</span>
+              </button>
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              Envie este link para a empresa preencher os próprios dados. Expira em <strong>7 dias</strong> e só pode ser usado <strong>uma vez</strong>.
+            </p>
+
+            {gerandoLink && (
+              <div className="flex flex-col items-center gap-3 py-2">
+                <div className="relative w-28 h-28">
+                  <svg className="w-full h-full -rotate-90" viewBox="0 0 88 88">
+                    <circle cx="44" cy="44" r="38" fill="#0f2020" stroke="#0f2020" strokeWidth="2" />
+                    <circle cx="44" cy="44" r="38" fill="none" stroke="#164444" strokeWidth="8" />
+                    <circle
+                      cx="44" cy="44" r="38"
+                      fill="none"
+                      stroke="#009B9B"
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                      strokeDasharray="238.76"
+                      strokeDashoffset={238.76 * (1 - linkProgress / 100)}
+                      style={{ transition: 'stroke-dashoffset 0.2s ease-out', filter: 'drop-shadow(0 0 6px #009B9B88)' }}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-lg font-extrabold text-white">{linkProgress}%</span>
+                  </div>
+                </div>
+                <p className="text-sm text-slate-500 font-medium">Gerando link seguro...</p>
+              </div>
+            )}
+
+            {!gerandoLink && linkGerado === 'erro' && (
+              <p className="text-red-500 text-sm">Erro ao gerar link. Feche e tente novamente.</p>
+            )}
+
+            {!gerandoLink && linkGerado && linkGerado !== 'erro' && (
+              <div className="flex gap-2">
+                <input readOnly value={linkGerado}
+                  className="flex-1 h-11 px-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-300 font-mono" />
+                <button onClick={() => navigator.clipboard.writeText(linkGerado)}
+                  className="h-11 px-4 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold text-sm flex items-center gap-1 transition-all">
+                  <span className="material-symbols-rounded text-sm">content_copy</span>
+                  Copiar
+                </button>
+              </div>
+            )}
+
+            <button onClick={fecharLinkModal}
+              className="mt-6 w-full h-11 border-2 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
+              Fechar
+            </button>
           </div>
         </div>
       )}
