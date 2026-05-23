@@ -6,6 +6,12 @@ import { useEmpresaFilter } from '../lib/useEmpresaFilter';
 import {
   fetchResumoRisco, fetchTopRiscos, fetchEvolucaoMensal,
 } from '../services/dashboard';
+import { fetchPlanosAcao, type StatusPlano } from '../services/planoAcao';
+
+// Ordem do status mais "avançado" pra mostrar quando o setor tem múltiplos
+// planos. 'em_andamento' aparece se tiver alguma ação rolando, mesmo que
+// já tenha alguma concluída.
+const STATUS_PRIORITY: StatusPlano[] = ['em_andamento', 'planejado', 'concluido', 'cancelado'];
 
 export function OverviewPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -28,6 +34,22 @@ export function OverviewPage() {
     queryFn: () => fetchEvolucaoMensal(filterId),
     enabled: ready,
   });
+  const { data: planos = [] } = useQuery({
+    queryKey: ['planosAcao', filterId],
+    queryFn: () => fetchPlanosAcao(filterId),
+    enabled: ready,
+  });
+
+  // Mapeia nome-do-setor → status mais relevante do plano (se existir)
+  const statusPorSetor = new Map<string, StatusPlano>();
+  for (const p of planos) {
+    const nome = p.departments?.name;
+    if (!nome) continue;
+    const atual = statusPorSetor.get(nome);
+    if (!atual || STATUS_PRIORITY.indexOf(p.status) < STATUS_PRIORITY.indexOf(atual)) {
+      statusPorSetor.set(nome, p.status);
+    }
+  }
 
   const loading = l1 || l2 || l3;
   const error = e1 ? 'Erro inesperado ao carregar dados.' : null;
@@ -328,6 +350,22 @@ export function OverviewPage() {
                       .map((r) => {
                         const isIntol = r.risco_global === 'Intolerável';
                         const initials = r.grupo_homogeneo.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+                        const statusPlano = statusPorSetor.get(r.grupo_homogeneo);
+                        // Cor e label do status da ação:
+                        // - sem plano → "Pendente de Contato" (amarelo pulsando)
+                        // - planejado → azul
+                        // - em_andamento → amarelo
+                        // - concluido → verde
+                        // - cancelado → cinza
+                        const statusInfo = !statusPlano
+                          ? { label: 'Pendente de Contato', dot: 'bg-amber-500 animate-pulse', text: 'text-slate-700 dark:text-slate-200' }
+                          : statusPlano === 'planejado'
+                          ? { label: 'Planejado', dot: 'bg-blue-500', text: 'text-blue-700 dark:text-blue-300' }
+                          : statusPlano === 'em_andamento'
+                          ? { label: 'Em Andamento', dot: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-300' }
+                          : statusPlano === 'concluido'
+                          ? { label: 'Concluído', dot: 'bg-green-500', text: 'text-green-700 dark:text-green-300' }
+                          : { label: 'Cancelado', dot: 'bg-slate-400', text: 'text-slate-500 dark:text-slate-400' };
                         return (
                           <tr key={r.grupo_homogeneo} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
                             <td className="px-8 py-5">
@@ -353,12 +391,16 @@ export function OverviewPage() {
                             </td>
                             <td className="px-8 py-5">
                               <div className="flex items-center gap-2">
-                                <span className="size-2 bg-amber-500 rounded-full animate-pulse"></span>
-                                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Pendente de Contato</span>
+                                <span className={`size-2 rounded-full ${statusInfo.dot}`}></span>
+                                <span className={`text-sm font-bold ${statusInfo.text}`}>{statusInfo.label}</span>
                               </div>
                             </td>
                             <td className="px-8 py-5 text-center">
-                              <button className="p-2 text-slate-400 hover:text-blue-600 transition-colors">
+                              <button
+                                onClick={() => navigate('/plano-acao')}
+                                title="Ver no Plano de Ação"
+                                className="p-2 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
+                              >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                               </button>
                             </td>
