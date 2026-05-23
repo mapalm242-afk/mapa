@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useViewingEmpresa, setViewingEmpresa } from '../lib/useEmpresaFilter';
 import {
   LayoutDashboard,
   AlertTriangle,
@@ -21,6 +22,8 @@ export function Sidebar() {
   const location = useLocation();
   const { user, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const { id: viewingEmpresaId, nome: viewingEmpresaNome } = useViewingEmpresa();
+  const isAdmin = user?.role === 'admin';
 
   // Fecha o drawer automaticamente quando a rota muda (clicou num menu em mobile)
   useEffect(() => {
@@ -122,6 +125,22 @@ export function Sidebar() {
             <div className="px-3 py-2 rounded-lg bg-white/10 border border-white/5">
               <p className="text-[10px] text-white/40 uppercase tracking-widest font-bold">Empresa</p>
               <p className="text-sm font-bold text-white truncate">{empresaNome}</p>
+            </div>
+          )}
+          {isAdmin && viewingEmpresaId && (
+            <div className="px-3 py-2 rounded-lg bg-amber-500/20 border border-amber-300/40">
+              <p className="text-[10px] text-amber-100 uppercase tracking-widest font-bold">Visualizando empresa</p>
+              <div className="flex items-center justify-between gap-2 mt-1">
+                <p className="text-sm font-bold text-white truncate">{viewingEmpresaNome || 'Selecionada'}</p>
+                <button
+                  type="button"
+                  onClick={() => setViewingEmpresa(null)}
+                  className="shrink-0 text-amber-100 hover:text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded hover:bg-white/10 transition-colors"
+                  title="Limpar filtro e voltar para visão global"
+                >
+                  Limpar
+                </button>
+              </div>
             </div>
           )}
         </div>

@@ -10,6 +10,7 @@ import {
   type EmpresaRow,
 } from '../services/empresas';
 import { fetchResumoRisco } from '../services/dashboard';
+import { setViewingEmpresa } from '../lib/useEmpresaFilter';
 
 interface EmpresaView {
   id: string;
@@ -320,7 +321,10 @@ export function SuperAdminPage() {
                                   QR Codes
                                 </button>
                                 <button
-                                  onClick={() => navigate(`/overview`)}
+                                  onClick={() => {
+                                    setViewingEmpresa(empresa.id, empresa.nome);
+                                    navigate('/overview');
+                                  }}
                                   className="text-blue-600 font-bold text-sm hover:underline cursor-pointer"
                                 >
                                   Dashboard
