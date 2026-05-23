@@ -9,7 +9,7 @@ import { WelcomeScreen } from '../components/WelcomeScreen';
 import { fetchQuestions, submitSurveyResponse, type Question } from '../services/survey';
 import { supabase } from '../lib/supabase';
 
-type AppState = 'LOADING' | 'WELCOME' | 'QUESTIONNAIRE' | 'COMPLETED' | 'INVALID_SETOR' | 'ERROR';
+type AppState = 'LOADING' | 'WELCOME' | 'QUESTIONNAIRE' | 'SUBMITTING' | 'COMPLETED' | 'INVALID_SETOR' | 'ERROR' | 'SUBMIT_ERROR';
 
 function getSetorId(searchParams: URLSearchParams): string | null {
   const fromRouter = searchParams.get('setor');
@@ -27,6 +27,7 @@ export function SurveyPage() {
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [direction, setDirection] = useState(1);
   const [setorNome, setSetorNome] = useState<string | null>(null);
+  const [submitErrorMsg, setSubmitErrorMsg] = useState<string>('');
 
   useEffect(() => {
     if (!setorId || setorId.trim() === '') {
@@ -48,6 +49,20 @@ export function SurveyPage() {
 
   const currentQuestion = questions[currentIndex];
 
+  const submitAnswers = async (answersToSubmit: Record<string, number>) => {
+    setState('SUBMITTING');
+    setSubmitErrorMsg('');
+    try {
+      await submitSurveyResponse(setorId!, answersToSubmit);
+      setState('COMPLETED');
+    } catch (err) {
+      console.error('Erro ao salvar respostas:', err);
+      const msg = err instanceof Error ? err.message : 'Erro desconhecido ao salvar as respostas.';
+      setSubmitErrorMsg(msg);
+      setState('SUBMIT_ERROR');
+    }
+  };
+
   const handleAnswer = async (value: LikertValue) => {
     const newAnswers = { ...answers, [currentQuestion.id]: value };
     setAnswers(newAnswers);
@@ -56,12 +71,7 @@ export function SurveyPage() {
     if (currentIndex < questions.length - 1) {
       setTimeout(() => setCurrentIndex(prev => prev + 1), 280);
     } else {
-      try {
-        await submitSurveyResponse(setorId!, newAnswers);
-      } catch {
-        // Still show completion even if submission fails
-      }
-      setState('COMPLETED');
+      await submitAnswers(newAnswers);
     }
   };
 
@@ -94,6 +104,44 @@ export function SurveyPage() {
 
   if (state === 'WELCOME') {
     return <WelcomeScreen onStart={() => setState('QUESTIONNAIRE')} setorNome={setorNome} />;
+  }
+
+  if (state === 'SUBMITTING') {
+    return (
+      <div className="min-h-screen bg-background-light dark:bg-background-dark font-sans text-slate-900 dark:text-slate-100 flex flex-col items-center justify-center p-6">
+        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" style={{ borderColor: '#009B9B', borderTopColor: 'transparent' }}></div>
+        <p className="text-slate-600 dark:text-slate-300 font-semibold">Salvando suas respostas...</p>
+        <p className="text-sm text-slate-400 mt-1">Não feche esta página.</p>
+      </div>
+    );
+  }
+
+  if (state === 'SUBMIT_ERROR') {
+    return (
+      <div className="min-h-screen bg-background-light dark:bg-background-dark font-sans text-slate-900 dark:text-slate-100 flex flex-col items-center justify-center p-6 text-center">
+        <div className="max-w-md">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+            <svg className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <p className="text-xl text-red-600 dark:text-red-400 font-bold mb-2">Não conseguimos salvar suas respostas</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">Suas respostas não foram perdidas. Você pode tentar enviar novamente.</p>
+          {submitErrorMsg && (
+            <p className="text-xs text-slate-400 dark:text-slate-500 mb-6 font-mono break-words bg-slate-100 dark:bg-slate-800 p-3 rounded-lg">
+              {submitErrorMsg}
+            </p>
+          )}
+          <button
+            onClick={() => submitAnswers(answers)}
+            className="px-6 py-3 rounded-xl font-bold text-white shadow-lg hover:shadow-xl transition-all"
+            style={{ backgroundColor: '#009B9B' }}
+          >
+            Tentar enviar novamente
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (state === 'COMPLETED') {
