@@ -152,7 +152,8 @@ export function ReportsPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="h-64 flex items-end justify-around gap-4">
+                    <div className="overflow-x-auto -mx-2 px-2">
+                      <div className="h-64 flex items-end justify-around gap-2 md:gap-4 min-w-[360px]">
                       {tendencia.map((m) => {
                         const altoH  = maxTotal > 0 ? (m.alto     / maxTotal) * 200 : 0;
                         const medioH = maxTotal > 0 ? (m.moderado / maxTotal) * 200 : 0;
@@ -207,6 +208,7 @@ export function ReportsPage() {
                           </div>
                         );
                       })}
+                      </div>
                     </div>
                     <div className="flex justify-center gap-6 mt-6">
                       <div className="flex items-center gap-2">

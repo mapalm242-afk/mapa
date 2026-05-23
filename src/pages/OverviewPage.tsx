@@ -78,7 +78,7 @@ export function OverviewPage() {
     <div className="flex h-screen overflow-hidden bg-[#f8fafc] dark:bg-slate-950">
       <Sidebar />
 
-      <main className="flex-1 overflow-y-auto p-8 lg:p-12" style={{ fontFamily: "'Manrope', sans-serif" }}>
+      <main className="flex-1 min-w-0 overflow-y-auto pt-4 md:pt-8 lg:pt-12 pl-16 md:pl-8 lg:pl-12 pr-4 md:pr-8 lg:pr-12 pb-4 md:pb-8 lg:pb-12" style={{ fontFamily: "'Manrope', sans-serif" }}>
         {/* Header */}
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
           <div>
@@ -231,42 +231,92 @@ export function OverviewPage() {
                   })()}
                 </div>
                 <div className="relative h-48 md:h-72 w-full">
-                  {evolucao.length > 0 ? (() => {
-                    const padding = 20;
-                    const width = 1000;
-                    const height = 200;
-                    const maxScore = Math.max(...evolucao.map(e => e.score_medio), 100);
-                    const minScore = Math.min(...evolucao.map(e => e.score_medio), 0);
-                    const range = maxScore - minScore || 1;
+                  {evolucao.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-full text-center">
+                      <svg className="w-16 h-16 text-slate-200 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" /></svg>
+                      <p className="text-sm text-slate-400 font-medium">Sem dados de evolução</p>
+                      <p className="text-xs text-slate-300 mt-1">O gráfico será preenchido conforme as coletas forem realizadas</p>
+                    </div>
+                  )}
+
+                  {evolucao.length === 1 && (() => {
+                    const e = evolucao[0];
+                    const style = getRiskStyle(e.score_medio);
+                    const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                    const d = new Date(e.mes);
+                    const r = 70;
+                    const c = 2 * Math.PI * r;
+                    const offset = c * (1 - e.score_medio / 100);
+                    return (
+                      <div className="flex flex-col items-center justify-center h-full">
+                        <div className="relative w-40 h-40 md:w-48 md:h-48">
+                          <svg className="w-full h-full -rotate-90" viewBox="0 0 160 160">
+                            <circle cx="80" cy="80" r={r} fill="none" stroke="currentColor" className="text-slate-100 dark:text-slate-800" strokeWidth="12" />
+                            <circle cx="80" cy="80" r={r} fill="none" stroke={style.barColor} strokeWidth="12" strokeLinecap="round"
+                              strokeDasharray={c} strokeDashoffset={offset}
+                              style={{ transition: 'stroke-dashoffset 1s ease-out', filter: `drop-shadow(0 0 8px ${style.shadowColor})` }} />
+                          </svg>
+                          <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className="text-4xl md:text-5xl font-extrabold" style={{ color: style.barColor }}>{e.score_medio.toFixed(0)}<span className="text-2xl md:text-3xl">%</span></span>
+                            <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest mt-1" style={{ color: style.barColor }}>{style.label}</span>
+                          </div>
+                        </div>
+                        <p className="mt-4 text-xs font-bold text-slate-500 uppercase tracking-[0.2em]">{meses[d.getMonth()]} {d.getFullYear().toString().slice(2)}</p>
+                        <p className="mt-1 text-[10px] text-slate-400">Aguardando mais coletas pra mostrar tendência</p>
+                      </div>
+                    );
+                  })()}
+
+                  {evolucao.length >= 2 && (() => {
+                    const padTop = 20, padBot = 24, padLeft = 36, padRight = 8;
+                    const width = 1000, height = 240;
+                    const innerW = width - padLeft - padRight;
+                    const innerH = height - padTop - padBot;
                     const points = evolucao.map((e, i) => ({
-                      x: evolucao.length === 1 ? width / 2 : (i / (evolucao.length - 1)) * width,
-                      y: padding + ((e.score_medio - minScore) / range) * (height - padding * 2),
+                      x: padLeft + (i / (evolucao.length - 1)) * innerW,
+                      y: padTop + (1 - e.score_medio / 100) * innerH,
+                      score: e.score_medio,
                     }));
                     const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
-                    const areaPath = `${linePath} V${height} H${points[0].x} Z`;
+                    const areaPath = `${linePath} L${points[points.length - 1].x},${padTop + innerH} L${points[0].x},${padTop + innerH} Z`;
+                    const lastScore = evolucao[evolucao.length - 1].score_medio;
+                    const style = getRiskStyle(lastScore);
                     const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-
+                    const yTicks = [0, 25, 50, 75, 100];
+                    const gradId = `chartGrad-${style.barColor.replace('#', '')}`;
                     return (
                       <>
-                        <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox={`0 0 ${width} ${height}`}>
+                        <svg className="w-full h-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
                           <defs>
-                            <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
-                              <stop offset="0%" stopColor="#136dec" stopOpacity="0.15" />
-                              <stop offset="100%" stopColor="#136dec" stopOpacity="0" />
+                            <linearGradient id={gradId} x1="0" x2="0" y1="0" y2="1">
+                              <stop offset="0%" stopColor={style.barColor} stopOpacity="0.25" />
+                              <stop offset="100%" stopColor={style.barColor} stopOpacity="0" />
                             </linearGradient>
                           </defs>
-                          <path d={areaPath} fill="url(#chartGradient)" />
-                          <path d={linePath} fill="none" stroke="#136dec" strokeLinecap="round" strokeWidth="3" />
+                          {yTicks.map(v => {
+                            const y = padTop + (1 - v / 100) * innerH;
+                            return (
+                              <g key={v}>
+                                <line x1={padLeft} x2={width - padRight} y1={y} y2={y} stroke="currentColor" className="text-slate-100 dark:text-slate-800" strokeWidth="1" />
+                                <text x={padLeft - 6} y={y + 4} textAnchor="end" fill="#94a3b8" fontSize="11" fontWeight="600">{v}</text>
+                              </g>
+                            );
+                          })}
+                          <path d={areaPath} fill={`url(#${gradId})`} style={{ animation: 'fadeIn 0.6s ease-out' }} />
+                          <path d={linePath} fill="none" stroke={style.barColor} strokeLinecap="round" strokeLinejoin="round" strokeWidth="3"
+                            style={{ filter: `drop-shadow(0 2px 4px ${style.shadowColor})` }} />
                           {points.map((p, i) => (
                             <g key={i}>
-                              <circle cx={p.x} cy={p.y} fill="white" r="5" stroke="#136dec" strokeWidth="2" />
-                              <text x={p.x} y={p.y - 12} textAnchor="middle" fill="#64748b" fontSize="11" fontWeight="bold">
-                                {evolucao[i].score_medio.toFixed(0)}%
+                              <circle cx={p.x} cy={p.y} r="6" fill="white" stroke={style.barColor} strokeWidth="2.5">
+                                <title>{`${evolucao[i].score_medio.toFixed(1)}% — ${meses[new Date(evolucao[i].mes).getMonth()]}/${new Date(evolucao[i].mes).getFullYear().toString().slice(2)}`}</title>
+                              </circle>
+                              <text x={p.x} y={p.y - 14} textAnchor="middle" fill={style.barColor} fontSize="12" fontWeight="700">
+                                {evolucao[i].score_medio.toFixed(0)}
                               </text>
                             </g>
                           ))}
                         </svg>
-                        <div className="flex justify-between mt-4 md:mt-8 text-[8px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider md:tracking-[0.2em]">
+                        <div className="flex justify-between mt-2 pl-9 pr-2 text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                           {evolucao.map((e, i) => {
                             const d = new Date(e.mes);
                             return <span key={i}>{meses[d.getMonth()]} {d.getFullYear().toString().slice(2)}</span>;
@@ -274,13 +324,7 @@ export function OverviewPage() {
                         </div>
                       </>
                     );
-                  })() : (
-                    <div className="flex flex-col items-center justify-center h-full text-center">
-                      <svg className="w-16 h-16 text-slate-200 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" /></svg>
-                      <p className="text-sm text-slate-400 font-medium">Sem dados de evolução</p>
-                      <p className="text-xs text-slate-300 mt-1">O gráfico será preenchido conforme as coletas forem realizadas</p>
-                    </div>
-                  )}
+                  })()}
                 </div>
               </div>
 
