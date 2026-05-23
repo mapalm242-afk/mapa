@@ -40,7 +40,7 @@ export function PlanoAcaoFormPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, loading: authLoading } = useAuth();
-  const { shouldFilter } = useEmpresaFilter();
+  const { empresaId, shouldFilter } = useEmpresaFilter();
 
   const [form, setForm] = useState<PlanoAcaoForm>(EMPTY_FORM);
   const [errors, setErrors] = useState<Partial<Record<keyof PlanoAcaoForm, string>>>({});
@@ -52,8 +52,13 @@ export function PlanoAcaoFormPage() {
   const [subescalaPersonalizada, setSubescalaPersonalizada] = useState('');
   const [carregandoMedida, setCarregandoMedida] = useState(false);
 
-  // empresa_id efetivo: para gestor vem do user, para admin vem do form
-  const empresaAtual = shouldFilter ? (user?.empresa_id ?? '') : form.empresa_id;
+  // empresa_id efetivo:
+  // - gestor: vem do próprio user (sempre filtra pela empresa dele)
+  // - admin com empresa selecionada via "Visualizando empresa": usa esse id
+  // - admin sem empresa selecionada: usa o que estiver no form (select visível)
+  const empresaAtual = shouldFilter
+    ? (user?.empresa_id ?? empresaId ?? '')
+    : form.empresa_id;
 
   // Nome do setor selecionado (necessário para buscar no vw_pgr_completo)
   const deptSelecionado = departments.find(d => d.id === form.department_id);
@@ -125,14 +130,20 @@ export function PlanoAcaoFormPage() {
     });
   }, [isEdit, id]);
 
-  // ── Preenche empresa_id para gestor ─────────────────────────────────────
+  // ── Preenche empresa_id automaticamente quando shouldFilter ─────────────
+  // Cobre tanto gestor (user.empresa_id) quanto admin visualizando uma
+  // empresa específica (empresaId vindo do hook useEmpresaFilter).
   useEffect(() => {
-    if (shouldFilter && user?.empresa_id) {
-      setForm(f => ({ ...f, empresa_id: user.empresa_id! }));
+    if (!shouldFilter) return;
+    const eid = user?.empresa_id ?? empresaId;
+    if (eid) {
+      setForm(f => ({ ...f, empresa_id: eid }));
     }
-  }, [shouldFilter, user?.empresa_id]);
+  }, [shouldFilter, user?.empresa_id, empresaId]);
 
   // ── Mutation ─────────────────────────────────────────────────────────────
+  const [submitError, setSubmitError] = useState<string>('');
+
   const saveMutation = useMutation({
     mutationFn: () => {
       const subFinal = form.subescala === 'Outra' ? subescalaPersonalizada : form.subescala;
@@ -142,8 +153,14 @@ export function PlanoAcaoFormPage() {
         : savePlano(payload);
     },
     onSuccess: () => {
+      setSubmitError('');
       queryClient.invalidateQueries({ queryKey: ['planosAcao'] });
       navigate('/plano-acao');
+    },
+    onError: (err: unknown) => {
+      console.error('Erro ao salvar Plano de Ação:', err);
+      const msg = err instanceof Error ? err.message : 'Erro desconhecido ao salvar.';
+      setSubmitError(msg);
     },
   });
 
@@ -428,10 +445,15 @@ export function PlanoAcaoFormPage() {
             </div>
 
             {/* ── Botões ────────────────────────────────────────────── */}
-            {saveMutation.isError && (
-              <p className="text-sm text-red-500 text-center">
-                Erro ao salvar. Verifique os dados e tente novamente.
-              </p>
+            {submitError && (
+              <div className="rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4 space-y-1">
+                <p className="text-sm font-semibold text-red-700 dark:text-red-400">
+                  Não conseguimos salvar a ação
+                </p>
+                <p className="text-xs text-red-600 dark:text-red-300 font-mono break-words">
+                  {submitError}
+                </p>
+              </div>
             )}
 
             <div className="flex gap-3 pb-8">
