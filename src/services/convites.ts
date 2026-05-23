@@ -1,19 +1,18 @@
 import { supabase, supabaseUrl, supabaseAnonKey } from '../lib/supabase';
 
-export async function criarConvite(): Promise<string> {
+// accessToken é passado pelo chamador (geralmente useAuth().session.access_token)
+// para evitar qualquer contato com supabase-js neste fluxo — getSession() já travou
+// indefinidamente em produção quando o auto-refresh do JWT não responde.
+export async function criarConvite(accessToken: string): Promise<string> {
+  if (!accessToken) throw new Error('Sessão inválida. Faça login novamente.');
   const token = crypto.randomUUID();
 
-  // Pega o access token atual
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) throw new Error('Sessão inválida. Faça login novamente.');
-
-  // Usa fetch direto — evita qualquer problema de lock/sessão do cliente JS
   const res = await fetch(`${supabaseUrl}/rest/v1/convites`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'apikey': supabaseAnonKey,
-      'Authorization': `Bearer ${session.access_token}`,
+      'Authorization': `Bearer ${accessToken}`,
       'Prefer': 'return=minimal',
     },
     body: JSON.stringify({ token }),
@@ -21,8 +20,8 @@ export async function criarConvite(): Promise<string> {
   });
 
   if (!res.ok) {
-    const msg = await res.text().catch(() => `HTTP ${res.status}`);
-    throw new Error(msg || `Erro ${res.status}`);
+    const body = await res.text().catch(() => '');
+    throw new Error(body ? `HTTP ${res.status}: ${body}` : `HTTP ${res.status}`);
   }
 
   return token;
