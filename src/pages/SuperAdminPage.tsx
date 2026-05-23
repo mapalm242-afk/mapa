@@ -102,11 +102,12 @@ async function carregarDadosAdmin() {
 
 export function SuperAdminPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const queryClient = useQueryClient();
   const [showNovoClienteModal, setShowNovoClienteModal] = useState(false);
   const [qrEmpresa, setQrEmpresa] = useState<{ nome: string; setores: { id: string; name: string }[] } | null>(null);
   const [linkGerado, setLinkGerado] = useState('');
+  const [erroLink, setErroLink] = useState('');
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [gerandoLink, setGerandoLink] = useState(false);
   const [linkProgress, setLinkProgress] = useState(0);
@@ -124,18 +125,19 @@ export function SuperAdminPage() {
   const handleGerarLink = async () => {
     setShowLinkModal(true);
     setLinkGerado('');
+    setErroLink('');
     setGerandoLink(true);
     try {
-      const token = await criarConvite();
+      const token = await criarConvite(session?.access_token ?? '');
       setLinkGerado(`${window.location.origin}/cadastro?token=${token}`);
-    } catch {
-      setLinkGerado('erro');
+    } catch (e) {
+      setErroLink(e instanceof Error ? e.message : 'Erro desconhecido ao gerar link.');
     } finally {
       setGerandoLink(false);
     }
   };
 
-  const fecharLinkModal = () => { setShowLinkModal(false); setLinkGerado(''); setGerandoLink(false); };
+  const fecharLinkModal = () => { setShowLinkModal(false); setLinkGerado(''); setErroLink(''); setGerandoLink(false); };
 
   const { data, isLoading: loading } = useQuery({
     queryKey: ['superAdminData'],
@@ -234,13 +236,13 @@ export function SuperAdminPage() {
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-8 flex items-center justify-between sticky top-0 z-10">
-          <div>
-            <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Painel Global Super Admin</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-500">Gestão M.A.P.A. - Saúde Mental Ocupacional</p>
+        <header className="min-h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 pl-16 md:pl-8 pr-4 md:pr-8 py-3 md:py-0 flex items-center justify-between gap-2 sticky top-0 z-10">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg md:text-2xl font-black tracking-tight text-slate-900 dark:text-white truncate">Painel Global Super Admin</h2>
+            <p className="hidden md:block text-sm text-slate-600 dark:text-slate-500">Gestão M.A.P.A. - Saúde Mental Ocupacional</p>
           </div>
-          <div className="flex items-center gap-4">
-            <button className="w-10 h-10 flex items-center justify-center rounded-lg bg-yellow-100 dark:bg-yellow-950/40 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-900/60 transition-colors relative">
+          <div className="flex items-center gap-2 md:gap-4 shrink-0">
+            <button className="w-9 h-9 md:w-10 md:h-10 flex items-center justify-center rounded-lg bg-yellow-100 dark:bg-yellow-950/40 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-900/60 transition-colors relative">
               <span className="material-symbols-rounded">notifications</span>
               {totalAlertas > 0 && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{totalAlertas}</span>
@@ -248,23 +250,23 @@ export function SuperAdminPage() {
             </button>
             <button
               onClick={handleGerarLink}
-              className="px-5 py-2.5 rounded-xl font-bold text-sm border-2 border-teal-600 text-teal-600 hover:bg-teal-50 transition-all flex items-center gap-2"
+              className="px-3 md:px-5 py-2 md:py-2.5 rounded-xl font-bold text-sm border-2 border-teal-600 text-teal-600 hover:bg-teal-50 transition-all flex items-center gap-2"
             >
               <span className="material-symbols-rounded">link</span>
-              Gerar Link
+              <span className="hidden sm:inline">Gerar Link</span>
             </button>
             <button
               onClick={() => setShowNovoClienteModal(true)}
-              className="text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+              className="text-white px-3 md:px-6 py-2 md:py-2.5 rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
               style={{ backgroundColor: '#009B9B' }}
             >
               <span className="material-symbols-rounded">add</span>
-              Novo Cliente
+              <span className="hidden sm:inline">Novo Cliente</span>
             </button>
           </div>
         </header>
 
-        <div className="p-8 space-y-8 w-full">
+        <div className="p-4 md:p-8 space-y-8 w-full">
           {loading ? (
             <div className="flex items-center justify-center h-64">
               <div className="w-8 h-8 border-4 border-slate-200 rounded-full animate-spin" style={{ borderTopColor: '#009B9B' }}></div>
@@ -555,11 +557,14 @@ export function SuperAdminPage() {
               </div>
             )}
 
-            {!gerandoLink && linkGerado === 'erro' && (
-              <p className="text-red-500 text-sm">Erro ao gerar link. Feche e tente novamente.</p>
+            {!gerandoLink && erroLink && (
+              <div className="text-red-500 text-sm space-y-1">
+                <p className="font-semibold">Erro ao gerar link:</p>
+                <p className="font-mono text-xs break-all">{erroLink}</p>
+              </div>
             )}
 
-            {!gerandoLink && linkGerado && linkGerado !== 'erro' && (
+            {!gerandoLink && linkGerado && (
               <div className="flex gap-2">
                 <input readOnly value={linkGerado}
                   className="flex-1 h-11 px-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-300 font-mono" />

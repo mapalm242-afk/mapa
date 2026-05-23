@@ -75,15 +75,15 @@ export function SettingsPage() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-8 flex items-center justify-between sticky top-0 z-10">
-          <div>
-            <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Configurações</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-500">Personalize sua experiência no M.A.P.A.</p>
+        <header className="min-h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 pl-16 md:pl-8 pr-4 md:pr-8 py-3 md:py-0 flex items-center justify-between sticky top-0 z-10">
+          <div className="min-w-0">
+            <h2 className="text-lg md:text-2xl font-black tracking-tight text-slate-900 dark:text-white truncate">Configurações</h2>
+            <p className="hidden md:block text-sm text-slate-600 dark:text-slate-500">Personalize sua experiência no M.A.P.A.</p>
           </div>
         </header>
 
         {/* Content */}
-        <div className="p-8 space-y-8 w-full overflow-y-auto">
+        <div className="p-4 md:p-8 space-y-8 w-full overflow-y-auto">
           {/* Tabs */}
           <div className="flex gap-2 border-b border-slate-200 dark:border-slate-800">
             <button

@@ -93,12 +93,12 @@ export function SetoresPage() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-8 flex items-center justify-between sticky top-0 z-10">
-          <div>
-            <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Setores</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-500">Gestão de setores e avaliações</p>
+        <header className="min-h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 pl-16 md:pl-8 pr-4 md:pr-8 py-3 md:py-0 flex items-center justify-between gap-2 sticky top-0 z-10">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg md:text-2xl font-black tracking-tight text-slate-900 dark:text-white truncate">Setores</h2>
+            <p className="hidden md:block text-sm text-slate-600 dark:text-slate-500">Gestão de setores e avaliações</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3 shrink-0">
             <div className="relative hidden lg:block">
               <span className="material-symbols-rounded absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
               <input
@@ -111,16 +111,16 @@ export function SetoresPage() {
             </div>
             <button
               onClick={() => imprimirTodosQRCodes(filteredSetores.map(s => ({ id: s.id, nome: s.nome })))}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm border-2 border-teal-600 text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-all"
+              className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl font-bold text-sm border-2 border-teal-600 text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-all"
             >
               <span className="material-symbols-rounded text-xl">print</span>
-              Imprimir QR Codes
+              <span className="hidden sm:inline">Imprimir QR Codes</span>
             </button>
           </div>
         </header>
 
         {/* Content */}
-        <div className="p-8 space-y-6 w-full overflow-y-auto">
+        <div className="p-4 md:p-8 space-y-6 w-full overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center py-20">
               <div className="w-8 h-8 border-4 border-slate-200 rounded-full animate-spin" style={{ borderTopColor: '#3b82f6' }}></div>

@@ -106,9 +106,9 @@ export function DashboardPage() {
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden" style={{ fontFamily: "'Inter', sans-serif" }}>
         {/* Header */}
-        <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-8 flex items-center justify-between shrink-0">
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Painel Executivo de Priorização</h1>
-          <div className="flex items-center gap-4">
+        <header className="min-h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 pl-16 md:pl-8 pr-4 md:pr-8 py-2 md:py-0 flex items-center justify-between gap-2 shrink-0">
+          <h1 className="text-base md:text-xl font-bold text-slate-900 dark:text-white truncate">Painel Executivo de Priorização</h1>
+          <div className="flex items-center gap-2 md:gap-4 shrink-0">
             {riscosCriticos > 0 && (
               <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-800 dark:bg-slate-800 rounded-full text-xs font-medium text-slate-300">
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
@@ -117,15 +117,15 @@ export function DashboardPage() {
             )}
             <button
               onClick={() => generatePGR(dados, user?.empresa_nome || null)}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded font-semibold text-sm flex items-center gap-2 transition-all"
+              className="bg-blue-500 hover:bg-blue-600 text-white px-3 md:px-4 py-2 rounded font-semibold text-sm flex items-center gap-2 transition-all"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-              Gerar Relatório PGR
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+              <span className="hidden sm:inline">Gerar Relatório PGR</span>
             </button>
           </div>
         </header>
 
-        <div className="flex-1 p-8 overflow-y-auto">
+        <div className="flex-1 p-4 md:p-8 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center h-64">
               <div className="w-8 h-8 border-4 border-slate-200 rounded-full animate-spin" style={{ borderTopColor: '#3b82f6' }}></div>

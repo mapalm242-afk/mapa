@@ -56,14 +56,14 @@ export function ReportsPage() {
       <Sidebar />
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-8 flex items-center justify-between shrink-0">
-          <h1 className="text-xl font-bold">Relatórios</h1>
+        <header className="min-h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 pl-16 md:pl-8 pr-4 md:pr-8 py-2 md:py-0 flex items-center justify-between gap-2 shrink-0">
+          <h1 className="text-lg md:text-xl font-bold truncate">Relatórios</h1>
           <button
             onClick={() => navigate('/dashboard')}
-            className="px-6 py-2.5 bg-primary hover:bg-primary-dark text-white font-semibold rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20"
+            className="px-3 md:px-6 py-2 md:py-2.5 bg-primary hover:bg-primary-dark text-white font-semibold rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20 text-sm shrink-0"
           >
             <span className="material-symbols-rounded">description</span>
-            Ir ao Dashboard
+            <span className="hidden sm:inline">Ir ao Dashboard</span>
           </button>
         </header>
 
@@ -81,7 +81,7 @@ export function ReportsPage() {
               </button>
             </div>
           ) : (
-            <div className="p-8 space-y-8">
+            <div className="p-4 md:p-8 space-y-8">
               {/* Quick Stats */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6">
