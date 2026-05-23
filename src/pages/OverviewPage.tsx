@@ -77,7 +77,7 @@ export function OverviewPage() {
               />
             </div>
             <button
-              onClick={() => { setLoading(true); setError(null); window.location.reload(); }}
+              onClick={() => window.location.reload()}
               title="Atualizar dados"
               className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 relative transition-all"
             >
