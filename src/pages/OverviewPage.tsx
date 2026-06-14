@@ -171,8 +171,8 @@ export function OverviewPage() {
                 <div className="flex flex-col gap-1 mb-4">
                   {setoresCriticos.length > 0 ? (
                     <>
-                      <h3 className="text-lg font-black text-slate-900 leading-tight uppercase">{setoresCriticos[0]?.grupo_homogeneo}</h3>
-                      <p className="text-xs text-slate-500 font-semibold tracking-wide">
+                      <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight uppercase">{setoresCriticos[0]?.grupo_homogeneo}</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold tracking-wide">
                         {setoresCriticos.slice(1, 3).map(s => s.grupo_homogeneo).join(' \u2022 ')}
                       </p>
                     </>
