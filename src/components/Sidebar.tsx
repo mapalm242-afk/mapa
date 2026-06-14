@@ -1,7 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import { useViewingEmpresa, setViewingEmpresa } from '../lib/useEmpresaFilter';
+import {
+  fetchPgrCompleto, fetchResumoRisco, fetchTopRiscos, fetchEvolucaoMensal,
+} from '../services/dashboard';
+import { fetchPlanosAcao } from '../services/planoAcao';
+import { fetchTendenciaRiscos, fetchHistoricoColetas, fetchReportsStats } from '../services/reports';
+import { fetchSetoresComStatus } from '../services/setores';
+import { fetchChecklists } from '../services/validacao';
 import {
   LayoutDashboard,
   AlertTriangle,
@@ -18,13 +26,55 @@ import {
   ListChecks,
 } from 'lucide-react';
 
+// Aquece o cache do React Query ao passar o mouse/focar num item do menu, pra
+// que ao clicar a tela já tenha os dados (prefetchQuery respeita o staleTime,
+// então não refaz query que ainda está fresca). filterId tem que bater exato
+// com a queryKey usada em cada página.
+const PREFETCH: Record<string, (qc: QueryClient, filterId: string | null) => void> = {
+  '/overview': (qc, f) => {
+    qc.prefetchQuery({ queryKey: ['resumoRisco', f], queryFn: () => fetchResumoRisco(f) });
+    qc.prefetchQuery({ queryKey: ['topRiscos', f], queryFn: () => fetchTopRiscos(f) });
+    qc.prefetchQuery({ queryKey: ['evolucaoMensal', f], queryFn: () => fetchEvolucaoMensal(f) });
+    qc.prefetchQuery({ queryKey: ['planosAcao', f], queryFn: () => fetchPlanosAcao(f) });
+  },
+  '/dashboard': (qc, f) => {
+    qc.prefetchQuery({ queryKey: ['pgrCompleto', f], queryFn: () => fetchPgrCompleto(f) });
+  },
+  '/setores': (qc, f) => {
+    qc.prefetchQuery({ queryKey: ['setoresComStatus', f], queryFn: () => fetchSetoresComStatus(f) });
+  },
+  '/reports': (qc, f) => {
+    qc.prefetchQuery({ queryKey: ['tendenciaRiscos', f], queryFn: () => fetchTendenciaRiscos(f) });
+    qc.prefetchQuery({ queryKey: ['historicoColetas', f], queryFn: () => fetchHistoricoColetas(f) });
+    qc.prefetchQuery({ queryKey: ['reportsStats', f], queryFn: () => fetchReportsStats(f) });
+  },
+  '/validacao': (qc, f) => {
+    qc.prefetchQuery({ queryKey: ['validacaoChecklists', f], queryFn: () => fetchChecklists(f) });
+  },
+  '/plano-acao': (qc, f) => {
+    qc.prefetchQuery({ queryKey: ['planosAcao', f], queryFn: () => fetchPlanosAcao(f) });
+  },
+};
+
 export function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const { id: viewingEmpresaId, nome: viewingEmpresaNome } = useViewingEmpresa();
   const isAdmin = user?.role === 'admin';
+
+  // Mesma lógica do useEmpresaFilter: admin filtra só se tiver empresa selecionada,
+  // gestor sempre filtra pela própria empresa. `prefetchReady` evita aquecer cache
+  // de gestor sem empresa (cadastro incompleto), que rodaria query sem filtro.
+  const filterId = isAdmin ? (viewingEmpresaId || null) : (user?.empresa_id || null);
+  const prefetchReady = isAdmin || !!user?.empresa_id;
+
+  const handlePrefetch = (path: string) => {
+    if (!prefetchReady) return;
+    PREFETCH[path]?.(queryClient, filterId);
+  };
 
   // Fecha o drawer automaticamente quando a rota muda (clicou num menu em mobile)
   useEffect(() => {
@@ -158,6 +208,8 @@ export function Sidebar() {
                 key={item.path}
                 type="button"
                 onClick={() => navigate(item.path)}
+                onMouseEnter={() => handlePrefetch(item.path)}
+                onFocus={() => handlePrefetch(item.path)}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all cursor-pointer ${
                   isActive(item.path)
                     ? 'bg-[#009B9B] dark:bg-[#007A7A] text-white shadow-lg'
