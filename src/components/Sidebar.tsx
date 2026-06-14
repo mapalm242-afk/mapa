@@ -10,6 +10,7 @@ import { fetchPlanosAcao } from '../services/planoAcao';
 import { fetchTendenciaRiscos, fetchHistoricoColetas, fetchReportsStats } from '../services/reports';
 import { fetchSetoresComStatus } from '../services/setores';
 import { fetchChecklists } from '../services/validacao';
+import { fetchLancamentos } from '../services/financeiro';
 import {
   LayoutDashboard,
   AlertTriangle,
@@ -53,6 +54,10 @@ const PREFETCH: Record<string, (qc: QueryClient, filterId: string | null) => voi
   },
   '/plano-acao': (qc, f) => {
     qc.prefetchQuery({ queryKey: ['planosAcao', f], queryFn: () => fetchPlanosAcao(f) });
+  },
+  '/financeiro': (qc) => {
+    // Financeiro é caixa único (sem filtro por empresa), então ignora o filterId.
+    qc.prefetchQuery({ queryKey: ['lancamentos'], queryFn: fetchLancamentos });
   },
 };
 
