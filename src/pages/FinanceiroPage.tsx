@@ -164,7 +164,7 @@ export function FinanceiroPage() {
                     <span className="material-symbols-rounded text-purple-600 dark:text-purple-400">percent</span>
                   </div>
                 </div>
-                <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{((saldo / totalReceita) * 100).toFixed(1)}%</p>
+                <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{(totalReceita > 0 ? (saldo / totalReceita) * 100 : 0).toFixed(1)}%</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Margem de lucro</p>
               </div>
             </div>

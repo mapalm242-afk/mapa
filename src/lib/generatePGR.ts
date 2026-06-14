@@ -154,7 +154,7 @@ export function generatePGR(dados: PgrRow[], empresaNome: string | null) {
   doc.setTextColor(30, 41, 59);
   doc.text('Detalhamento por Categoria COPSOQ II', 14, afterFirstTable + 12);
 
-  const detailData = dados
+  const detailData = [...dados]
     .sort((a, b) => b.grau_risco - a.grau_risco)
     .map(row => [
       row.grupo_homogeneo,
