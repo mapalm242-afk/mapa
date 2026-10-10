@@ -1,13 +1,58 @@
 import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { Sidebar } from '../components/Sidebar';
 import { supabase } from '../lib/supabase';
+import {
+  fetchPreferencias, salvarPreferencias, enviarEmailTeste,
+  type PreferenciasNotificacao,
+} from '../services/notificacoes';
 
 export function SettingsPage() {
   const { theme, setTheme } = useTheme();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('geral');
+
+  // ── Notificações (os e-mails vão só para o admin) ──────────
+  const prefsKey = ['preferenciasNotificacao', user?.id];
+  const { data: prefs, isLoading: carregandoPrefs, error: erroPrefs } = useQuery({
+    queryKey: prefsKey,
+    queryFn: () => fetchPreferencias(user!.id),
+    enabled: isAdmin && !!user,
+  });
+  const [erroSalvarPrefs, setErroSalvarPrefs] = useState(false);
+  const [testeStatus, setTesteStatus] = useState<{ tipo: 'sucesso' | 'erro'; msg: string } | null>(null);
+
+  const prefsMutation = useMutation({
+    mutationFn: salvarPreferencias,
+    onMutate: (novas: PreferenciasNotificacao) => {
+      const anteriores = queryClient.getQueryData<PreferenciasNotificacao>(prefsKey);
+      queryClient.setQueryData(prefsKey, novas);
+      setErroSalvarPrefs(false);
+      return { anteriores };
+    },
+    onError: (_err, _novas, contexto) => {
+      queryClient.setQueryData(prefsKey, contexto?.anteriores);
+      setErroSalvarPrefs(true);
+    },
+  });
+
+  const alternarPref = (campo: keyof PreferenciasNotificacao) => {
+    if (!prefs) return;
+    prefsMutation.mutate({ ...prefs, [campo]: !prefs[campo] });
+  };
+
+  const testeMutation = useMutation({
+    mutationFn: enviarEmailTeste,
+    onMutate: () => setTesteStatus(null),
+    onSuccess: () => setTesteStatus({
+      tipo: 'sucesso',
+      msg: 'Pedido registrado. O e-mail sai na próxima verificação do n8n; para receber agora, execute o fluxo manualmente por lá.',
+    }),
+    onError: () => setTesteStatus({ tipo: 'erro', msg: 'Não foi possível pedir o e-mail de teste. Tente novamente.' }),
+  });
 
   // ── Alterar senha ──────────────────────────────────────────
   const [senhaAtual, setSenhaAtual] = useState('');
@@ -96,16 +141,18 @@ export function SettingsPage() {
             >
               Geral
             </button>
-            <button
-              onClick={() => setActiveTab('notificacoes')}
-              className={`px-4 py-3 font-semibold border-b-2 transition-all ${
-                activeTab === 'notificacoes'
-                  ? 'border-primary text-primary dark:text-blue-500'
-                  : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-              }`}
-            >
-              Notificações
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setActiveTab('notificacoes')}
+                className={`px-4 py-3 font-semibold border-b-2 transition-all ${
+                  activeTab === 'notificacoes'
+                    ? 'border-primary text-primary dark:text-blue-500'
+                    : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                Notificações
+              </button>
+            )}
             <button
               onClick={() => setActiveTab('seguranca')}
               className={`px-4 py-3 font-semibold border-b-2 transition-all ${
@@ -173,39 +220,89 @@ export function SettingsPage() {
           )}
 
           {/* Notifications Settings */}
-          {activeTab === 'notificacoes' && (
+          {isAdmin && activeTab === 'notificacoes' && (
             <div className="space-y-6 max-w-2xl">
-              {/* Email Alerts */}
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Os e-mails são enviados para <span className="font-semibold">{user?.email}</span>.
+              </p>
+
+              {(erroPrefs || erroSalvarPrefs) && (
+                <p className="text-sm font-medium px-3 py-2 rounded-lg bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400">
+                  {erroPrefs ? 'Não foi possível carregar as opções de notificação.' : 'Não foi possível salvar. Tente novamente.'}
+                </p>
+              )}
+
+              {/* Email Alerts — chave geral */}
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <div>
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white">Alertas por Email</h3>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Receba notificações sobre riscos críticos</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Chave geral: desligue para não receber nenhum e-mail do sistema</p>
                   </div>
-                  <input type="checkbox" defaultChecked className="w-6 h-6 rounded border-slate-300 accent-blue-600" />
+                  <input
+                    type="checkbox"
+                    checked={prefs?.alertas_email ?? false}
+                    disabled={!prefs || carregandoPrefs}
+                    onChange={() => alternarPref('alertas_email')}
+                    className="w-6 h-6 shrink-0 rounded border-slate-300 accent-blue-600"
+                  />
                 </div>
               </div>
 
               {/* Critical Alerts */}
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <div>
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white">Alertas Críticos</h3>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Notificações imediatas para situações críticas</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">E-mail quando um setor entra em risco crítico</p>
                   </div>
-                  <input type="checkbox" defaultChecked className="w-6 h-6 rounded border-slate-300 accent-blue-600" />
+                  <input
+                    type="checkbox"
+                    checked={(prefs?.alertas_email && prefs.alertas_criticos) ?? false}
+                    disabled={!prefs?.alertas_email}
+                    onChange={() => alternarPref('alertas_criticos')}
+                    className="w-6 h-6 shrink-0 rounded border-slate-300 accent-blue-600 disabled:opacity-40"
+                  />
                 </div>
               </div>
 
               {/* Daily Digest */}
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <div>
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white">Resumo Diário</h3>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Receba um resumo das atividades do dia</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">E-mail depois das 8h com as respostas das últimas 24 horas e os setores em risco crítico</p>
                   </div>
-                  <input type="checkbox" defaultChecked className="w-6 h-6 rounded border-slate-300 accent-blue-600" />
+                  <input
+                    type="checkbox"
+                    checked={(prefs?.alertas_email && prefs.resumo_diario) ?? false}
+                    disabled={!prefs?.alertas_email}
+                    onChange={() => alternarPref('resumo_diario')}
+                    className="w-6 h-6 shrink-0 rounded border-slate-300 accent-blue-600 disabled:opacity-40"
+                  />
                 </div>
+              </div>
+
+              {/* Test e-mail */}
+              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">E-mail de teste</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 mb-4">Confira se os e-mails estão chegando na sua caixa de entrada</p>
+                {testeStatus && (
+                  <p className={`text-sm font-medium px-3 py-2 rounded-lg mb-4 ${
+                    testeStatus.tipo === 'sucesso'
+                      ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                      : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'
+                  }`}>
+                    {testeStatus.msg}
+                  </p>
+                )}
+                <button
+                  onClick={() => testeMutation.mutate()}
+                  disabled={testeMutation.isPending}
+                  className="px-4 py-2.5 bg-[#009B9B] hover:bg-[#008585] disabled:opacity-50 text-white font-bold rounded-xl transition-all"
+                >
+                  {testeMutation.isPending ? 'Enviando...' : 'Enviar e-mail de teste'}
+                </button>
               </div>
             </div>
           )}
