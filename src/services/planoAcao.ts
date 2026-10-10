@@ -83,10 +83,18 @@ export async function savePlano(form: PlanoAcaoForm): Promise<string> {
   return data.id;
 }
 
+// Campos opcionais: texto vazio vai como null, igual ao savePlano. No prazo
+// isso é obrigatório, porque a coluna é DATE e o banco recusa ''.
+const CAMPOS_OPCIONAIS = ['subescala', 'medida_sugerida', 'responsavel', 'prazo', 'observacoes'] as const;
+
 export async function updatePlano(id: string, form: Partial<PlanoAcaoForm>): Promise<void> {
+  const dados: Record<string, unknown> = { ...form, updated_at: new Date().toISOString() };
+  for (const campo of CAMPOS_OPCIONAIS) {
+    if (dados[campo] === '') dados[campo] = null;
+  }
   const { error } = await supabase
     .from('plano_acao')
-    .update({ ...form, updated_at: new Date().toISOString() })
+    .update(dados)
     .eq('id', id);
   if (error) throw error;
 }

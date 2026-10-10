@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Sidebar } from '../components/Sidebar';
@@ -39,7 +39,7 @@ export function PlanoAcaoFormPage() {
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user, loading: authLoading } = useAuth();
+  const { loading: authLoading } = useAuth();
   const { empresaId, shouldFilter } = useEmpresaFilter();
 
   const [form, setForm] = useState<PlanoAcaoForm>(EMPTY_FORM);
@@ -51,17 +51,29 @@ export function PlanoAcaoFormPage() {
   const [subescalas, setSubescalas] = useState<string[]>([]);
   const [subescalaPersonalizada, setSubescalaPersonalizada] = useState('');
   const [carregandoMedida, setCarregandoMedida] = useState(false);
+  // A medida aparece numa caixa travada até a pessoa digitar ou clicar em
+  // "Editar manualmente"; daí em diante é um campo de texto comum.
+  const [editandoMedida, setEditandoMedida] = useState(false);
+  const buscaMedida = useRef(0);
 
-  // empresa_id efetivo:
-  // - gestor: vem do próprio user (sempre filtra pela empresa dele)
-  // - admin com empresa selecionada via "Visualizando empresa": usa esse id
+  // empresa_id efetivo (o useEmpresaFilter já resolve os dois primeiros casos):
+  // - gestor: a própria empresa
+  // - admin com empresa selecionada via "Visualizando empresa": usa esse id,
+  //   mesmo que o admin tenha uma empresa própria no cadastro
   // - admin sem empresa selecionada: usa o que estiver no form (select visível)
-  const empresaAtual = shouldFilter
-    ? (user?.empresa_id ?? empresaId ?? '')
-    : form.empresa_id;
+  const empresaAtual = shouldFilter ? (empresaId ?? '') : form.empresa_id;
 
   // Nome do setor selecionado (necessário para buscar no vw_pgr_completo)
   const deptSelecionado = departments.find(d => d.id === form.department_id);
+
+  // Dimensão gravada que não está na lista do setor (digitada em "Outra", ou o
+  // setor deixou de ter análise): entra como opção para não sumir da tela.
+  const subescalaForaDaLista =
+    form.subescala && form.subescala !== 'Outra' && !subescalas.includes(form.subescala)
+      ? form.subescala
+      : null;
+
+  const medidaTravada = Boolean(form.medida_sugerida) && form.subescala !== 'Outra' && !editandoMedida;
 
   // ── Carrega lista de empresas para admin ─────────────────────────────────
   useEffect(() => {
@@ -96,22 +108,6 @@ export function PlanoAcaoFormPage() {
     fetchSubescalasPorSetor(eid, deptName).then(setSubescalas).catch(() => setSubescalas([]));
   }, [form.department_id, empresaAtual, deptSelecionado?.name]);
 
-  // ── Busca medida sugerida ao escolher dimensão ───────────────────────────
-  useEffect(() => {
-    const eid = empresaAtual;
-    const sub = form.subescala;
-    const deptName = deptSelecionado?.name;
-    if (!eid || !sub || sub === 'Outra') return;
-
-    setCarregandoMedida(true);
-    fetchMedidaSugerida(eid, sub, deptName)
-      .then(medida => {
-        if (medida) setForm(f => ({ ...f, medida_sugerida: medida }));
-      })
-      .catch(() => {})
-      .finally(() => setCarregandoMedida(false));
-  }, [form.subescala, empresaAtual, deptSelecionado?.name]);
-
   // ── Carrega plano existente no modo edição ───────────────────────────────
   useEffect(() => {
     if (!isEdit || !id) return;
@@ -131,15 +127,12 @@ export function PlanoAcaoFormPage() {
   }, [isEdit, id]);
 
   // ── Preenche empresa_id automaticamente quando shouldFilter ─────────────
-  // Cobre tanto gestor (user.empresa_id) quanto admin visualizando uma
-  // empresa específica (empresaId vindo do hook useEmpresaFilter).
+  // Cobre tanto gestor (a própria empresa) quanto admin visualizando uma
+  // empresa específica — nos dois casos o id vem do hook useEmpresaFilter.
   useEffect(() => {
-    if (!shouldFilter) return;
-    const eid = user?.empresa_id ?? empresaId;
-    if (eid) {
-      setForm(f => ({ ...f, empresa_id: eid }));
-    }
-  }, [shouldFilter, user?.empresa_id, empresaId]);
+    if (!shouldFilter || !empresaId) return;
+    setForm(f => ({ ...f, empresa_id: empresaId }));
+  }, [shouldFilter, empresaId]);
 
   // ── Mutation ─────────────────────────────────────────────────────────────
   const [submitError, setSubmitError] = useState<string>('');
@@ -159,7 +152,8 @@ export function PlanoAcaoFormPage() {
     },
     onError: (err: unknown) => {
       console.error('Erro ao salvar Plano de Ação:', err);
-      const msg = err instanceof Error ? err.message : 'Erro desconhecido ao salvar.';
+      // o erro do Supabase é um objeto comum com `message`, não um Error
+      const msg = (err as { message?: string } | null)?.message || 'Erro desconhecido ao salvar.';
       setSubmitError(msg);
     },
   });
@@ -169,13 +163,52 @@ export function PlanoAcaoFormPage() {
     if (errors[field]) setErrors(e => ({ ...e, [field]: undefined }));
   };
 
+  // Descarta a resposta de uma busca de medida que ainda esteja a caminho
+  const cancelarBuscaMedida = () => {
+    buscaMedida.current++;
+    setCarregandoMedida(false);
+  };
+
+  const handleEmpresaChange = (novaEmpresaId: string) => {
+    cancelarBuscaMedida();
+    setEditandoMedida(false);
+    setForm(f => ({ ...f, empresa_id: novaEmpresaId, department_id: '', subescala: '', medida_sugerida: '' }));
+    setDepartments([]);
+    setSubescalas([]);
+  };
+
   const handleDeptChange = (deptId: string) => {
+    cancelarBuscaMedida();
+    setEditandoMedida(false);
     setForm(f => ({ ...f, department_id: deptId, subescala: '', medida_sugerida: '' }));
     setSubescalas([]);
   };
 
+  // A sugestão só é buscada quando a pessoa escolhe a dimensão: buscar ao abrir
+  // uma ação já cadastrada trocaria a medida gravada pela sugestão do sistema.
   const handleSubescalaChange = (value: string) => {
+    cancelarBuscaMedida();
+    setEditandoMedida(false);
     setForm(f => ({ ...f, subescala: value, medida_sugerida: '' }));
+    if (!empresaAtual || !value || value === 'Outra') return;
+
+    const estaBusca = buscaMedida.current;
+    setCarregandoMedida(true);
+    fetchMedidaSugerida(empresaAtual, value, deptSelecionado?.name)
+      .then(medida => {
+        if (estaBusca !== buscaMedida.current || !medida) return;
+        setForm(f => ({ ...f, medida_sugerida: medida }));
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (estaBusca === buscaMedida.current) setCarregandoMedida(false);
+      });
+  };
+
+  const handleMedidaChange = (value: string) => {
+    cancelarBuscaMedida();
+    setEditandoMedida(true);
+    set('medida_sugerida', value);
   };
 
   const validate = () => {
@@ -234,11 +267,7 @@ export function PlanoAcaoFormPage() {
                   </label>
                   <select
                     value={form.empresa_id}
-                    onChange={e => {
-                      setForm(f => ({ ...f, empresa_id: e.target.value, department_id: '', subescala: '', medida_sugerida: '' }));
-                      setDepartments([]);
-                      setSubescalas([]);
-                    }}
+                    onChange={e => handleEmpresaChange(e.target.value)}
                     className={`w-full px-4 py-3 rounded-xl border text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#009B9B] transition-all ${
                       errors.empresa_id ? 'border-red-400' : 'border-slate-200 dark:border-slate-700'
                     }`}
@@ -294,6 +323,9 @@ export function PlanoAcaoFormPage() {
                         : 'Nenhuma dimensão analisada ainda'
                       : 'Selecione o setor primeiro'}
                   </option>
+                  {subescalaForaDaLista && (
+                    <option value={subescalaForaDaLista}>{subescalaForaDaLista}</option>
+                  )}
                   {subescalas.map(s => (
                     <option key={s} value={s}>{s}</option>
                   ))}
@@ -329,14 +361,15 @@ export function PlanoAcaoFormPage() {
                 )}
               </div>
 
-              {form.medida_sugerida && form.subescala !== 'Outra' ? (
+              {medidaTravada ? (
                 <div className="p-4 bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-xl">
                   <p className="text-sm text-teal-800 dark:text-teal-300 leading-relaxed">{form.medida_sugerida}</p>
                 </div>
               ) : (
                 <textarea
                   value={form.medida_sugerida}
-                  onChange={e => set('medida_sugerida', e.target.value)}
+                  onChange={e => handleMedidaChange(e.target.value)}
+                  autoFocus={editandoMedida}
                   rows={3}
                   placeholder={
                     form.subescala && form.subescala !== 'Outra'
@@ -348,10 +381,10 @@ export function PlanoAcaoFormPage() {
               )}
 
               {/* Botão para editar a medida sugerida mesmo quando preenchida */}
-              {form.medida_sugerida && form.subescala !== 'Outra' && (
+              {medidaTravada && (
                 <button
                   type="button"
-                  onClick={() => set('medida_sugerida', '')}
+                  onClick={() => setEditandoMedida(true)}
                   className="text-xs text-slate-400 hover:text-slate-600 underline"
                 >
                   Editar manualmente
