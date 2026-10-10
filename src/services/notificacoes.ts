@@ -7,12 +7,13 @@ export interface PreferenciasNotificacao {
   alertas_email: boolean;     // chave geral
   alertas_criticos: boolean;
   resumo_diario: boolean;
+  analise_concluida: boolean; // único aviso que o gestor também recebe
 }
 
 export async function fetchPreferencias(userId: string): Promise<PreferenciasNotificacao> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('notif_alertas_email, notif_alertas_criticos, notif_resumo_diario')
+    .select('notif_alertas_email, notif_alertas_criticos, notif_resumo_diario, notif_analise_concluida')
     .eq('id', userId)
     .single();
   if (error) throw error;
@@ -20,6 +21,7 @@ export async function fetchPreferencias(userId: string): Promise<PreferenciasNot
     alertas_email: data.notif_alertas_email,
     alertas_criticos: data.notif_alertas_criticos,
     resumo_diario: data.notif_resumo_diario,
+    analise_concluida: data.notif_analise_concluida,
   };
 }
 
@@ -28,6 +30,7 @@ export async function salvarPreferencias(p: PreferenciasNotificacao): Promise<vo
     p_alertas_email: p.alertas_email,
     p_alertas_criticos: p.alertas_criticos,
     p_resumo_diario: p.resumo_diario,
+    p_analise_concluida: p.analise_concluida,
   });
   if (error) throw error;
 }

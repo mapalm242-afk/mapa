@@ -15,12 +15,14 @@ export function SettingsPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('geral');
 
-  // ── Notificações (os e-mails vão só para o admin) ──────────
+  // ── Notificações ───────────────────────────────────────────
+  // Alertas e resumo vão só para o admin. O aviso de análise concluída vai
+  // também para o gestor da empresa, que por isso vê a aba com essa opção.
   const prefsKey = ['preferenciasNotificacao', user?.id];
   const { data: prefs, isLoading: carregandoPrefs, error: erroPrefs } = useQuery({
     queryKey: prefsKey,
     queryFn: () => fetchPreferencias(user!.id),
-    enabled: isAdmin && !!user,
+    enabled: !!user,
   });
   const [erroSalvarPrefs, setErroSalvarPrefs] = useState(false);
   const [testeStatus, setTesteStatus] = useState<{ tipo: 'sucesso' | 'erro'; msg: string } | null>(null);
@@ -42,6 +44,14 @@ export function SettingsPage() {
   const alternarPref = (campo: keyof PreferenciasNotificacao) => {
     if (!prefs) return;
     prefsMutation.mutate({ ...prefs, [campo]: !prefs[campo] });
+  };
+
+  const avisoAnaliseLigado = !!prefs && prefs.alertas_email && prefs.analise_concluida;
+  const alternarAvisoAnalise = () => {
+    if (!prefs) return;
+    // O gestor não tem a chave geral na tela: ligar o aviso liga a chave junto
+    if (isAdmin) alternarPref('analise_concluida');
+    else prefsMutation.mutate({ ...prefs, alertas_email: true, analise_concluida: !avisoAnaliseLigado });
   };
 
   const testeMutation = useMutation({
@@ -141,18 +151,16 @@ export function SettingsPage() {
             >
               Geral
             </button>
-            {isAdmin && (
-              <button
-                onClick={() => setActiveTab('notificacoes')}
-                className={`px-4 py-3 font-semibold border-b-2 transition-all ${
-                  activeTab === 'notificacoes'
-                    ? 'border-primary text-primary dark:text-blue-500'
-                    : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                }`}
-              >
-                Notificações
-              </button>
-            )}
+            <button
+              onClick={() => setActiveTab('notificacoes')}
+              className={`px-4 py-3 font-semibold border-b-2 transition-all ${
+                activeTab === 'notificacoes'
+                  ? 'border-primary text-primary dark:text-blue-500'
+                  : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              Notificações
+            </button>
             <button
               onClick={() => setActiveTab('seguranca')}
               className={`px-4 py-3 font-semibold border-b-2 transition-all ${
@@ -220,7 +228,7 @@ export function SettingsPage() {
           )}
 
           {/* Notifications Settings */}
-          {isAdmin && activeTab === 'notificacoes' && (
+          {activeTab === 'notificacoes' && (
             <div className="space-y-6 max-w-2xl">
               <p className="text-sm text-slate-600 dark:text-slate-400">
                 Os e-mails são enviados para <span className="font-semibold">{user?.email}</span>.
@@ -232,6 +240,7 @@ export function SettingsPage() {
                 </p>
               )}
 
+              {isAdmin && (<>
               {/* Email Alerts — chave geral */}
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
                 <div className="flex items-center justify-between gap-4">
@@ -283,7 +292,31 @@ export function SettingsPage() {
                 </div>
               </div>
 
+              </>)}
+
+              {/* Análise concluída — admin e gestor */}
+              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Análise Concluída</h3>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                      {isAdmin
+                        ? 'E-mail quando todos os setores de uma empresa completam a coleta (o gestor da empresa também recebe)'
+                        : 'E-mail quando todos os setores da sua empresa completam a coleta'}
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={avisoAnaliseLigado}
+                    disabled={!prefs || (isAdmin && !prefs.alertas_email)}
+                    onChange={alternarAvisoAnalise}
+                    className="w-6 h-6 shrink-0 rounded border-slate-300 accent-blue-600 disabled:opacity-40"
+                  />
+                </div>
+              </div>
+
               {/* Test e-mail */}
+              {isAdmin && (
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">E-mail de teste</h3>
                 <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 mb-4">Confira se os e-mails estão chegando na sua caixa de entrada</p>
@@ -304,6 +337,7 @@ export function SettingsPage() {
                   {testeMutation.isPending ? 'Enviando...' : 'Enviar e-mail de teste'}
                 </button>
               </div>
+              )}
             </div>
           )}
 

@@ -1175,14 +1175,17 @@ CREATE POLICY "logos_convite_upload" ON storage.objects
 -- notificacoes_processar() de tempos em tempos com um segredo.
 --   - Alertas Críticos: quando um setor entra em risco crítico
 --   - Resumo Diário: uma vez por dia, depois das 8h (Brasília)
---   - Alertas por Email: chave geral, desliga os dois acima
+--   - Análise Concluída: quando todos os setores de uma empresa
+--     completam a coleta (vai também para o gestor da empresa)
+--   - Alertas por Email: chave geral, desliga os três acima
 -- Os resultados vêm de pgr_report(), então a regra do mínimo de
 -- respostas vale aqui também.
 -- ------------------------------------------------------------
 ALTER TABLE profiles
   ADD COLUMN IF NOT EXISTS notif_alertas_email    BOOLEAN NOT NULL DEFAULT TRUE,
   ADD COLUMN IF NOT EXISTS notif_alertas_criticos BOOLEAN NOT NULL DEFAULT TRUE,
-  ADD COLUMN IF NOT EXISTS notif_resumo_diario    BOOLEAN NOT NULL DEFAULT TRUE;
+  ADD COLUMN IF NOT EXISTS notif_resumo_diario    BOOLEAN NOT NULL DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS notif_analise_concluida BOOLEAN NOT NULL DEFAULT TRUE;
 
 -- Valores internos (hash do segredo do n8n, dia do último resumo)
 CREATE TABLE IF NOT EXISTS config_privada (
@@ -1200,7 +1203,7 @@ CREATE TABLE IF NOT EXISTS alerta_setor_estado (
 -- E-mails prontos para envio; retirado_em marca os que o n8n já levou
 CREATE TABLE IF NOT EXISTS email_fila (
   id          BIGINT      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  tipo        TEXT        NOT NULL CHECK (tipo IN ('alerta_critico','resumo_diario','teste')),
+  tipo        TEXT        NOT NULL CHECK (tipo IN ('alerta_critico','resumo_diario','teste','analise_concluida')),
   para        TEXT        NOT NULL,
   assunto     TEXT        NOT NULL,
   html        TEXT        NOT NULL,
@@ -1208,11 +1211,25 @@ CREATE TABLE IF NOT EXISTS email_fila (
   retirado_em TIMESTAMPTZ
 );
 
+-- A lista de tipos cresce com o tempo; recriar a regra cobre bancos já existentes
+ALTER TABLE email_fila DROP CONSTRAINT IF EXISTS email_fila_tipo_check;
+ALTER TABLE email_fila ADD CONSTRAINT email_fila_tipo_check
+  CHECK (tipo IN ('alerta_critico','resumo_diario','teste','analise_concluida'));
+
+-- Último estado conhecido da coleta de cada empresa, para avisar só quando
+-- ela passa a estar completa
+CREATE TABLE IF NOT EXISTS empresa_coleta_estado (
+  empresa_id    BIGINT      PRIMARY KEY REFERENCES empresas(id) ON DELETE CASCADE,
+  completa      BOOLEAN     NOT NULL,
+  atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- RLS ligada e sem policies: só as funções SECURITY DEFINER abaixo acessam
-ALTER TABLE config_privada      ENABLE ROW LEVEL SECURITY;
-ALTER TABLE alerta_setor_estado ENABLE ROW LEVEL SECURITY;
-ALTER TABLE email_fila          ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON config_privada, alerta_setor_estado, email_fila FROM anon, authenticated;
+ALTER TABLE config_privada        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE alerta_setor_estado   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_fila            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE empresa_coleta_estado ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON config_privada, alerta_setor_estado, email_fila, empresa_coleta_estado FROM anon, authenticated;
 
 -- Nomes de empresa e de setor vêm do cadastro público: escapar antes de pôr no HTML
 CREATE OR REPLACE FUNCTION public.html_esc(p TEXT)
@@ -1368,6 +1385,99 @@ BEGIN
 END;
 $$;
 
+-- Fração de pessoas do setor que precisa responder para a coleta contar
+-- como completa. O front espelha o valor em src/lib/coleta.ts.
+CREATE OR REPLACE FUNCTION public.adesao_minima()
+RETURNS NUMERIC
+LANGUAGE sql IMMUTABLE
+SET search_path = public
+AS $$
+  SELECT 0.70;
+$$;
+
+-- Avisa quando TODOS os setores de uma empresa passam a ter a coleta
+-- completa: adesão mínima atingida ou, sem o total de pessoas informado,
+-- o mínimo de respostas (mesma regra de statusColeta no front).
+-- Vai para os admins e para os gestores da própria empresa.
+CREATE OR REPLACE FUNCTION public.gerar_aviso_analise_concluida()
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_emp      RECORD;
+  v_dest     RECORD;
+  v_criticos TEXT;
+BEGIN
+  FOR v_emp IN
+    WITH setores AS (
+      SELECT d.empresa_id, d.headcount,
+             (SELECT COUNT(*) FROM respondents r WHERE r.department_id = d.id) AS respostas
+      FROM departments d
+    ),
+    por_empresa AS (
+      SELECT
+        s.empresa_id,
+        COUNT(*)         AS setores,
+        SUM(s.respostas) AS respostas,
+        CASE WHEN COUNT(*) = COUNT(s.headcount) THEN SUM(s.headcount) END AS pessoas,
+        bool_and(
+          s.respostas > 0 AND CASE
+            WHEN s.headcount IS NOT NULL THEN s.respostas::NUMERIC / s.headcount >= adesao_minima()
+            ELSE s.respostas >= minimo_respondentes()
+          END
+        ) AS completa
+      FROM setores s
+      GROUP BY s.empresa_id
+    )
+    SELECT e.id, e.nome_fantasia, p.setores, p.respostas, p.pessoas, p.completa,
+           COALESCE(st.completa, FALSE) AS antes
+    FROM por_empresa p
+    JOIN empresas e ON e.id = p.empresa_id
+    LEFT JOIN empresa_coleta_estado st ON st.empresa_id = e.id
+  LOOP
+    IF v_emp.completa AND NOT v_emp.antes THEN
+      SELECT string_agg(
+               '<li>' || html_esc(d.name) || ': ' ||
+               CASE WHEN c.grau > 16 THEN 'Intolerável' ELSE 'Significativo' END || '</li>',
+               '' ORDER BY c.grau DESC, d.name)
+      INTO v_criticos
+      FROM (
+        SELECT pr.department_id, MAX(pr.risk_grade) AS grau
+        FROM pgr_report() pr
+        GROUP BY pr.department_id
+        HAVING MAX(pr.risk_grade) > 12
+      ) c
+      JOIN departments d ON d.id = c.department_id
+      WHERE d.empresa_id = v_emp.id;
+
+      FOR v_dest IN
+        SELECT DISTINCT p.email FROM profiles p
+        WHERE p.notif_alertas_email AND p.notif_analise_concluida
+          AND (p.role = 'admin' OR (p.role = 'gestor' AND p.empresa_id = v_emp.id))
+      LOOP
+        PERFORM enfileirar_email('analise_concluida', v_dest.email,
+          'M.A.P.A.: análise concluída (' || v_emp.nome_fantasia || ')',
+          '<h2>Análise concluída</h2>' ||
+          '<p>Todos os setores de <b>' || html_esc(v_emp.nome_fantasia) || '</b> completaram a coleta (' ||
+          v_emp.setores || CASE WHEN v_emp.setores = 1 THEN ' setor' ELSE ' setores' END || ').</p>' ||
+          '<p><b>' || v_emp.respostas || '</b> respostas' ||
+          COALESCE(' de <b>' || v_emp.pessoas || '</b> pessoas (' ||
+                   LEAST(100, ROUND(v_emp.respostas::NUMERIC / v_emp.pessoas * 100)) || '% de adesão)', '') || '.</p>' ||
+          CASE WHEN v_criticos IS NULL THEN '<p>Nenhum setor em risco crítico.</p>'
+               ELSE '<p>Setores em risco crítico:</p><ul>' || v_criticos || '</ul>' END ||
+          '<p>O relatório PGR já pode ser gerado no painel do M.A.P.A.</p>');
+      END LOOP;
+    END IF;
+
+    INSERT INTO empresa_coleta_estado (empresa_id, completa) VALUES (v_emp.id, v_emp.completa)
+    ON CONFLICT (empresa_id) DO UPDATE
+      SET completa = EXCLUDED.completa, atualizado_em = now()
+      WHERE empresa_coleta_estado.completa IS DISTINCT FROM EXCLUDED.completa;
+  END LOOP;
+END;
+$$;
+
 -- Chamada pelo n8n. Confere o segredo, gera o que houver de novo e
 -- devolve os e-mails pendentes, já marcando como retirados.
 CREATE OR REPLACE FUNCTION public.notificacoes_processar(p_segredo TEXT)
@@ -1394,6 +1504,7 @@ BEGIN
       jsonb_build_object('sub', v_admin, 'role', 'authenticated')::TEXT, TRUE);
     PERFORM gerar_alertas_criticos();
     PERFORM gerar_resumo_diario();
+    PERFORM gerar_aviso_analise_concluida();
   END IF;
 
   RETURN QUERY
@@ -1404,19 +1515,23 @@ END;
 $$;
 
 -- Tela de Configurações: cada usuário grava as próprias opções
+DROP FUNCTION IF EXISTS salvar_notificacoes(BOOLEAN, BOOLEAN, BOOLEAN);
+
 CREATE OR REPLACE FUNCTION public.salvar_notificacoes(
-  p_alertas_email    BOOLEAN,
-  p_alertas_criticos BOOLEAN,
-  p_resumo_diario    BOOLEAN
+  p_alertas_email     BOOLEAN,
+  p_alertas_criticos  BOOLEAN,
+  p_resumo_diario     BOOLEAN,
+  p_analise_concluida BOOLEAN DEFAULT NULL
 )
 RETURNS VOID
 LANGUAGE sql SECURITY DEFINER
 SET search_path = public
 AS $$
   UPDATE profiles SET
-    notif_alertas_email    = COALESCE(p_alertas_email, notif_alertas_email),
-    notif_alertas_criticos = COALESCE(p_alertas_criticos, notif_alertas_criticos),
-    notif_resumo_diario    = COALESCE(p_resumo_diario, notif_resumo_diario)
+    notif_alertas_email     = COALESCE(p_alertas_email, notif_alertas_email),
+    notif_alertas_criticos  = COALESCE(p_alertas_criticos, notif_alertas_criticos),
+    notif_resumo_diario     = COALESCE(p_resumo_diario, notif_resumo_diario),
+    notif_analise_concluida = COALESCE(p_analise_concluida, notif_analise_concluida)
   WHERE id = auth.uid();
 $$;
 
@@ -1443,10 +1558,11 @@ END;
 $$;
 
 REVOKE EXECUTE ON FUNCTION
-  enfileirar_email(TEXT, TEXT, TEXT, TEXT), gerar_alertas_criticos(), gerar_resumo_diario(TIMESTAMPTZ)
+  enfileirar_email(TEXT, TEXT, TEXT, TEXT), gerar_alertas_criticos(), gerar_resumo_diario(TIMESTAMPTZ),
+  gerar_aviso_analise_concluida()
 FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION salvar_notificacoes(BOOLEAN, BOOLEAN, BOOLEAN), enviar_email_teste() FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION salvar_notificacoes(BOOLEAN, BOOLEAN, BOOLEAN), enviar_email_teste() TO authenticated;
+REVOKE EXECUTE ON FUNCTION salvar_notificacoes(BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN), enviar_email_teste() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION salvar_notificacoes(BOOLEAN, BOOLEAN, BOOLEAN, BOOLEAN), enviar_email_teste() TO authenticated;
 -- O n8n chama com a chave pública (role anon); o que protege é o segredo
 REVOKE EXECUTE ON FUNCTION notificacoes_processar(TEXT) FROM PUBLIC, authenticated;
 GRANT EXECUTE ON FUNCTION notificacoes_processar(TEXT) TO anon, service_role;
@@ -1695,7 +1811,7 @@ ON CONFLICT (subscale) DO UPDATE SET
 COMMIT;
 
 -- ------------------------------------------------------------
--- 14. VERIFICAÇÃO — deve retornar 17 tabelas, 10 views,
+-- 14. VERIFICAÇÃO — deve retornar 18 tabelas, 10 views,
 --     76 perguntas e 29 ações do PGR
 -- ------------------------------------------------------------
 SELECT
