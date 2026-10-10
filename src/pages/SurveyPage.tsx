@@ -6,10 +6,11 @@ import { LikertOption, type LikertValue } from '../components/LikertOption';
 import { LIKERT_CHOICES } from '../lib/likertChoices';
 import { CompletionScreen } from '../components/CompletionScreen';
 import { WelcomeScreen } from '../components/WelcomeScreen';
-import { fetchQuestions, submitSurveyResponse, type Question } from '../services/survey';
+import { SexoScreen } from '../components/SexoScreen';
+import { fetchQuestions, submitSurveyResponse, type Question, type Sexo } from '../services/survey';
 import { supabase } from '../lib/supabase';
 
-type AppState = 'LOADING' | 'WELCOME' | 'QUESTIONNAIRE' | 'SUBMITTING' | 'COMPLETED' | 'INVALID_SETOR' | 'ERROR' | 'SUBMIT_ERROR';
+type AppState = 'LOADING' | 'WELCOME' | 'PERFIL' | 'QUESTIONNAIRE' | 'SUBMITTING' | 'COMPLETED' | 'INVALID_SETOR' | 'ERROR' | 'SUBMIT_ERROR';
 
 function getSetorId(searchParams: URLSearchParams): string | null {
   const fromRouter = searchParams.get('setor');
@@ -27,6 +28,7 @@ export function SurveyPage() {
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [direction, setDirection] = useState(1);
   const [setorNome, setSetorNome] = useState<string | null>(null);
+  const [sexo, setSexo] = useState<Sexo>('NI');
   const [submitErrorMsg, setSubmitErrorMsg] = useState<string>('');
   // ID estável por sessão da página — garante idempotência em retries
   const [clientRequestId] = useState<string>(() => crypto.randomUUID());
@@ -55,7 +57,7 @@ export function SurveyPage() {
     setState('SUBMITTING');
     setSubmitErrorMsg('');
     try {
-      await submitSurveyResponse(setorId!, answersToSubmit, clientRequestId);
+      await submitSurveyResponse(setorId!, answersToSubmit, clientRequestId, sexo);
       setState('COMPLETED');
     } catch (err) {
       console.error('Erro ao salvar respostas:', err);
@@ -105,7 +107,11 @@ export function SurveyPage() {
   }
 
   if (state === 'WELCOME') {
-    return <WelcomeScreen onStart={() => setState('QUESTIONNAIRE')} setorNome={setorNome} />;
+    return <WelcomeScreen onStart={() => setState('PERFIL')} setorNome={setorNome} />;
+  }
+
+  if (state === 'PERFIL') {
+    return <SexoScreen onSelect={(valor) => { setSexo(valor); setState('QUESTIONNAIRE'); }} />;
   }
 
   if (state === 'SUBMITTING') {

@@ -6,6 +6,7 @@ import {
   fetchTendenciaRiscos,
   fetchHistoricoColetas,
   fetchReportsStats,
+  fetchAnalisePorSexo,
 } from '../services/reports';
 import { MIN_RESPONDENTES } from '../lib/anonimato';
 
@@ -30,6 +31,14 @@ export function ReportsPage() {
     enabled: ready,
   });
 
+  // Comparação por sexo: só existe dentro de uma empresa (gestor, ou admin
+  // com uma empresa selecionada), nunca somando empresas nem por setor.
+  const { data: porSexo, isLoading: carregandoSexo } = useQuery({
+    queryKey: ['analisePorSexo', filterId],
+    queryFn: () => fetchAnalisePorSexo(filterId!),
+    enabled: ready && !!filterId,
+  });
+
   const loading = l1 || l2 || l3;
   const error = e1 ? 'Erro ao carregar dados de relatórios.' : null;
 
@@ -48,6 +57,9 @@ export function ReportsPage() {
     if (!iso) return '—';
     try { return new Date(iso).toLocaleDateString('pt-BR'); } catch { return '—'; }
   };
+
+  const corScore = (score: number) =>
+    score >= 66.7 ? 'text-red-600 dark:text-red-400' : score >= 33.4 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400';
 
   // Escala do gráfico: pega o maior total entre os meses (pra normalizar a altura das barras)
   const maxTotal = Math.max(1, ...tendencia.map(m => m.total));
@@ -230,6 +242,62 @@ export function ReportsPage() {
                         <div className="w-3 h-3 rounded bg-green-500"></div>
                         <span className="text-sm text-slate-600 dark:text-slate-400">Risco Baixo</span>
                       </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Análise por sexo */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6">
+                <h2 className="text-lg font-bold">Análise por sexo</h2>
+                <p className="text-sm text-slate-500 mt-1 mb-4">
+                  Score de 0 a 100 em cada subescala (quanto maior, maior o risco), comparando os grupos da empresa inteira.
+                </p>
+
+                {!filterId ? (
+                  <p className="text-sm text-slate-400">Selecione uma empresa no painel Super Admin para ver esta análise.</p>
+                ) : carregandoSexo ? (
+                  <p className="text-sm text-slate-400">Carregando...</p>
+                ) : !porSexo ? (
+                  <p className="text-sm text-slate-400">
+                    A comparação aparece quando há pelo menos dois grupos e cada um tem no mínimo {MIN_RESPONDENTES} respostas.
+                    Enquanto algum grupo for menor que isso, tudo fica oculto para ninguém ser identificado.
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {porSexo.grupos.map(g => (
+                        <span key={g.grupo} className="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                          {g.grupo}: {g.respondentes} respostas
+                        </span>
+                      ))}
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 dark:border-slate-800">
+                            <th className="py-2 pr-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Subescala</th>
+                            {porSexo.grupos.map(g => (
+                              <th key={g.grupo} className="py-2 px-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">{g.grupo}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {porSexo.linhas.map(linha => (
+                            <tr key={linha.subescala}>
+                              <td className="py-2 pr-4 text-slate-700 dark:text-slate-300">{linha.subescala}</td>
+                              {porSexo.grupos.map(g => {
+                                const score = linha.scores[g.grupo];
+                                return (
+                                  <td key={g.grupo} className={`py-2 px-3 text-right font-semibold ${score === undefined ? 'text-slate-300' : corScore(score)}`}>
+                                    {score === undefined ? '—' : score.toFixed(1)}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </>
                 )}

@@ -334,11 +334,11 @@ $$;
 
 -- As views e funções de análise são recriadas do zero a cada execução
 DROP VIEW IF EXISTS
-  vw_tendencia_riscos, vw_evolucao_mensal, vw_media_por_categoria_setor,
+  vw_analise_por_sexo, vw_tendencia_riscos, vw_evolucao_mensal, vw_media_por_categoria_setor,
   vw_resumo_risco_departamento, vw_pgr_completo, v_pgr_report,
   v_risk_levels, v_subscale_averages, v_converted_responses
 CASCADE;
-DROP FUNCTION IF EXISTS pgr_report(), evolucao_mensal(), tendencia_riscos() CASCADE;
+DROP FUNCTION IF EXISTS pgr_report(), evolucao_mensal(), tendencia_riscos(), analise_por_sexo() CASCADE;
 
 -- View 1: Respostas convertidas (aplica 6 - valor nas invertidas)
 CREATE VIEW v_converted_responses WITH (security_invoker = true) AS
@@ -570,6 +570,58 @@ AS $$
   GROUP BY pr.empresa, pr.mes_ref;
 $$;
 
+-- Comparação por sexo, só no nível da empresa (nunca por setor).
+-- Grupos: Feminino, Masculino e "Outro ou não informado". A empresa só
+-- aparece se houver pelo menos dois grupos e nenhum ficar abaixo do
+-- mínimo: com o total e um grupo em mãos daria para calcular o outro.
+CREATE FUNCTION analise_por_sexo()
+RETURNS TABLE (
+  empresa_id   BIGINT,
+  grupo        TEXT,
+  respondentes BIGINT,
+  subescala    TEXT,
+  score_medio  NUMERIC
+)
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  WITH pessoas AS (
+    SELECT
+      r.id,
+      d.empresa_id AS empresa,
+      CASE rtrim(r.gender)
+        WHEN 'F' THEN 'Feminino'
+        WHEN 'M' THEN 'Masculino'
+        ELSE 'Outro ou não informado'
+      END AS grupo
+    FROM respondents r
+    JOIN departments d ON d.id = r.department_id
+    WHERE is_admin() OR d.empresa_id = current_empresa_id()
+  ),
+  grupos AS (
+    SELECT p.empresa, p.grupo, COUNT(*) AS n
+    FROM pessoas p
+    GROUP BY p.empresa, p.grupo
+  ),
+  liberadas AS (
+    SELECT g.empresa
+    FROM grupos g
+    GROUP BY g.empresa
+    HAVING COUNT(*) >= 2 AND MIN(g.n) >= minimo_respondentes()
+  )
+  SELECT
+    p.empresa,
+    p.grupo,
+    g.n,
+    sa.subscale,
+    ROUND(((ROUND(AVG(sa.avg_score)::NUMERIC, 2) - 1) / 4.0) * 100, 1)
+  FROM pessoas p
+  JOIN liberadas l ON l.empresa = p.empresa
+  JOIN grupos g    ON g.empresa = p.empresa AND g.grupo = p.grupo
+  JOIN v_subscale_averages sa ON sa.respondent_id = p.id
+  GROUP BY p.empresa, p.grupo, g.n, sa.subscale;
+$$;
+
 -- ------------------------------------------------------------
 -- 5. VIEWS CONSUMIDAS PELO FRONT (escala 0-100)
 --
@@ -676,16 +728,23 @@ ORDER BY mes ASC;
 CREATE VIEW vw_tendencia_riscos WITH (security_invoker = true) AS
 SELECT * FROM tendencia_riscos();
 
+-- Ponte 6: vw_analise_por_sexo (comparação por sexo em Relatórios)
+CREATE VIEW vw_analise_por_sexo WITH (security_invoker = true) AS
+SELECT * FROM analise_por_sexo();
+
 -- ------------------------------------------------------------
 -- 6. FUNÇÃO RPC — inserção transacional do questionário
 --
 -- Único caminho de gravação das respostas. client_request_id
 -- torna o envio idempotente: reenviar após timeout não duplica.
 -- ------------------------------------------------------------
+DROP FUNCTION IF EXISTS insert_survey_response(UUID, JSONB, UUID);
+
 CREATE OR REPLACE FUNCTION insert_survey_response(
   p_department_id     UUID,
   p_answers           JSONB,
-  p_client_request_id UUID DEFAULT NULL
+  p_client_request_id UUID DEFAULT NULL,
+  p_gender            TEXT DEFAULT NULL
 ) RETURNS UUID
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -708,9 +767,10 @@ BEGIN
     END IF;
   END IF;
 
-  -- Cria novo respondent
-  INSERT INTO respondents (department_id, client_request_id)
-  VALUES (p_department_id, p_client_request_id)
+  -- Cria novo respondent. O sexo é opcional; valor fora da lista é ignorado
+  INSERT INTO respondents (department_id, client_request_id, gender)
+  VALUES (p_department_id, p_client_request_id,
+          CASE WHEN p_gender IN ('M', 'F', 'NB', 'NI') THEN p_gender END)
   RETURNING id INTO v_respondent_id;
 
   -- Insere as respostas individuais
@@ -1048,7 +1108,8 @@ REVOKE ALL ON
   lancamentos_financeiros,
   v_converted_responses, v_subscale_averages, v_pgr_report, v_risk_levels,
   vw_pgr_completo, vw_resumo_risco_departamento,
-  vw_media_por_categoria_setor, vw_evolucao_mensal, vw_tendencia_riscos
+  vw_media_por_categoria_setor, vw_evolucao_mensal, vw_tendencia_riscos,
+  vw_analise_por_sexo
 FROM anon;
 
 -- Questionário: do setor, o visitante lê só o id e o nome
@@ -1064,6 +1125,10 @@ GRANT UPDATE (status, usado_at) ON convites TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
 -- Views por respondente: uso interno, fora da API
 REVOKE ALL ON v_converted_responses, v_subscale_averages, v_risk_levels FROM authenticated;
+-- De cada resposta, quem está logado lê só o setor e a data (para contar a
+-- adesão). O sexo só sai agregado, por analise_por_sexo().
+REVOKE SELECT ON respondents FROM authenticated;
+GRANT SELECT (id, department_id, created_at) ON respondents TO authenticated;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
 
@@ -1075,11 +1140,11 @@ GRANT EXECUTE ON FUNCTION public.empresa_em_cadastro(BIGINT) TO anon, authentica
 GRANT EXECUTE ON FUNCTION public.logo_em_cadastro(TEXT)      TO anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.definir_headcount(UUID, INTEGER) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.definir_headcount(UUID, INTEGER) TO authenticated;
-GRANT EXECUTE ON FUNCTION insert_survey_response(UUID, JSONB, UUID) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION insert_survey_response(UUID, JSONB, UUID, TEXT) TO anon, authenticated;
 
 -- Agregações: só para quem está logado (a regra de empresa é delas)
-REVOKE EXECUTE ON FUNCTION pgr_report(), evolucao_mensal(), tendencia_riscos() FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION pgr_report(), evolucao_mensal(), tendencia_riscos() TO authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION pgr_report(), evolucao_mensal(), tendencia_riscos(), analise_por_sexo() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION pgr_report(), evolucao_mensal(), tendencia_riscos(), analise_por_sexo() TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.minimo_respondentes() TO authenticated, service_role;
 
 -- ------------------------------------------------------------
@@ -1630,7 +1695,7 @@ ON CONFLICT (subscale) DO UPDATE SET
 COMMIT;
 
 -- ------------------------------------------------------------
--- 14. VERIFICAÇÃO — deve retornar 17 tabelas, 9 views,
+-- 14. VERIFICAÇÃO — deve retornar 17 tabelas, 10 views,
 --     76 perguntas e 29 ações do PGR
 -- ------------------------------------------------------------
 SELECT

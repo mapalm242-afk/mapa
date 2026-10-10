@@ -7,6 +7,9 @@ export interface Question {
   is_inverted: boolean;
 }
 
+// Sexo informado pelo respondente (opcional). NB = outro, NI = prefere não informar.
+export type Sexo = 'F' | 'M' | 'NB' | 'NI';
+
 export async function fetchQuestions(): Promise<Question[]> {
   const { data, error } = await supabase
     .from('questions')
@@ -29,11 +32,13 @@ export async function submitSurveyResponse(
   setorId: string,
   answers: Record<string | number, number>,
   clientRequestId?: string,
+  sexo?: Sexo,
 ) {
   const { error } = await supabase.rpc('insert_survey_response', {
     p_department_id:     setorId,
     p_answers:           answers,
     p_client_request_id: clientRequestId ?? null,
+    p_gender:            sexo ?? null,
   });
   if (error) throw error;
 }

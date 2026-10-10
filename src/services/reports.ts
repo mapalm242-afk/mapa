@@ -75,6 +75,46 @@ export async function fetchTendenciaRiscos(empresaId?: string | null): Promise<T
 }
 
 // ============================================================
+// Análise por sexo (só no nível da empresa)
+// ============================================================
+
+export interface AnalisePorSexo {
+  grupos: { grupo: string; respondentes: number }[];
+  // uma linha por subescala, com o score (0 a 100) de cada grupo
+  linhas: { subescala: string; scores: Record<string, number> }[];
+}
+
+// O banco só devolve a comparação quando há pelo menos dois grupos e
+// nenhum deles fica abaixo do mínimo de anonimato; fora disso vem vazio.
+export async function fetchAnalisePorSexo(empresaId: string): Promise<AnalisePorSexo | null> {
+  const { data, error } = await supabase
+    .from('vw_analise_por_sexo')
+    .select('grupo, respondentes, subescala, score_medio')
+    .eq('empresa_id', empresaId);
+  if (error) throw error;
+  if (!data || data.length === 0) return null;
+
+  const grupos = new Map<string, number>();
+  const porSubescala = new Map<string, Record<string, number>>();
+  for (const row of data) {
+    grupos.set(row.grupo, row.respondentes);
+    const scores = porSubescala.get(row.subescala) ?? {};
+    scores[row.grupo] = Number(row.score_medio);
+    porSubescala.set(row.subescala, scores);
+  }
+
+  // Feminino e Masculino primeiro; "Outro ou não informado" por último
+  const ordem = ['Feminino', 'Masculino'];
+  const posicao = (g: string) => (ordem.includes(g) ? ordem.indexOf(g) : ordem.length);
+  return {
+    grupos: Array.from(grupos, ([grupo, respondentes]) => ({ grupo, respondentes }))
+      .sort((a, b) => posicao(a.grupo) - posicao(b.grupo)),
+    linhas: Array.from(porSubescala, ([subescala, scores]) => ({ subescala, scores }))
+      .sort((a, b) => a.subescala.localeCompare(b.subescala)),
+  };
+}
+
+// ============================================================
 // Histórico de coletas por setor
 // ============================================================
 
