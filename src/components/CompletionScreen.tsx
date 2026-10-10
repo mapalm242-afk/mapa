@@ -1,6 +1,3 @@
-
-import { AudioPill } from './AudioPill';
-
 export function CompletionScreen() {
   return (
     <div className="flex flex-col items-center justify-center p-6 min-h-[100dvh] text-center fade-in-slow bg-white dark:bg-background-dark">
@@ -17,8 +14,6 @@ export function CompletionScreen() {
           Obrigado por colaborar com o bem-estar da sua equipa!
         </p>
       </div>
-
-      <AudioPill />
     </div>
   );
 }

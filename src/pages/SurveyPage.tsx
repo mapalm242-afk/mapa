@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ProgressBar } from '../components/ProgressBar';
@@ -11,6 +11,13 @@ import { fetchQuestions, submitSurveyResponse, type Question, type Sexo } from '
 import { supabase } from '../lib/supabase';
 
 type AppState = 'LOADING' | 'WELCOME' | 'PERFIL' | 'QUESTIONNAIRE' | 'SUBMITTING' | 'COMPLETED' | 'INVALID_SETOR' | 'ERROR' | 'SUBMIT_ERROR';
+
+// A pergunta entra por um lado e sai pelo outro; ao voltar, inverte.
+const TROCA_PERGUNTA = {
+  entra: (dir: number) => ({ opacity: 0, x: 40 * dir }),
+  centro: { opacity: 1, x: 0 },
+  sai: (dir: number) => ({ opacity: 0, x: -40 * dir }),
+};
 
 function getSetorId(searchParams: URLSearchParams): string | null {
   const fromRouter = searchParams.get('setor');
@@ -27,6 +34,13 @@ export function SurveyPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [direction, setDirection] = useState(1);
+  // Pergunta mais adiantada a que a pessoa já chegou (limite do "Avançar")
+  const [maisLonge, setMaisLonge] = useState(0);
+  // Pergunta que está valendo para toques. Durante a animação de troca a
+  // pergunta anterior ainda está na tela; sem isto, um toque duplo
+  // respondia de novo a anterior e pulava a seguinte.
+  const indiceAtivo = useRef(0);
+  const trocando = useRef(false);
   const [setorNome, setSetorNome] = useState<string | null>(null);
   const [sexo, setSexo] = useState<Sexo>('NI');
   const [submitErrorMsg, setSubmitErrorMsg] = useState<string>('');
@@ -67,15 +81,32 @@ export function SurveyPage() {
     }
   };
 
-  const handleAnswer = async (value: LikertValue) => {
-    const newAnswers = { ...answers, [currentQuestion.id]: value };
-    setAnswers(newAnswers);
-    setDirection(1);
+  // Cada pergunta começa no topo, mesmo que a anterior tenha precisado rolar
+  useEffect(() => { window.scrollTo(0, 0); }, [currentIndex]);
 
-    if (currentIndex < questions.length - 1) {
-      setTimeout(() => setCurrentIndex(prev => prev + 1), 280);
+  const irPara = (indice: number) => {
+    setDirection(indice >= indiceAtivo.current ? 1 : -1);
+    indiceAtivo.current = indice;
+    setCurrentIndex(indice);
+    setMaisLonge(m => Math.max(m, indice));
+  };
+
+  const navegar = (indice: number) => {
+    if (trocando.current) return;
+    irPara(indice);
+  };
+
+  const handleAnswer = async (indice: number, value: LikertValue) => {
+    if (trocando.current || indice !== indiceAtivo.current) return;
+    trocando.current = true;
+    const newAnswers = { ...answers, [questions[indice].id]: value };
+    setAnswers(newAnswers);
+
+    if (indice < questions.length - 1) {
+      setTimeout(() => { trocando.current = false; irPara(indice + 1); }, 220);
     } else {
       await submitAnswers(newAnswers);
+      trocando.current = false;
     }
   };
 
@@ -167,66 +198,88 @@ export function SurveyPage() {
     );
   }
 
+  const respostaAtual = answers[currentQuestion.id];
+
+  // Tudo cabe numa tela de celular: cabeçalho fino com o progresso, a
+  // pergunta no espaço que sobra e as opções em duas colunas, sempre no
+  // mesmo lugar.
   return (
-    <div className="bg-white font-sans text-slate-900 min-h-screen transition-colors duration-300">
-      <header className="fixed top-0 left-0 right-0 z-50 px-6 py-4 flex justify-between items-center bg-white/80 backdrop-blur-md border-b border-slate-200/50">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xl" style={{ backgroundColor: '#009B9B' }}>M</div>
-          <span className="font-display font-semibold text-xl tracking-tight" style={{ color: '#2D5A5A' }}>M.A.P.A.</span>
-          {setorNome && (
-            <span className="hidden sm:inline-block ml-3 px-3 py-1 rounded-lg text-xs font-bold text-white" style={{ backgroundColor: '#2D5A5A' }}>
-              {setorNome}
-            </span>
-          )}
+    <div className="bg-white font-sans text-slate-900 min-h-dvh flex flex-col">
+      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200/50">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3">
+          <div className="flex items-center justify-between gap-3 mb-2.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-white font-bold text-xl" style={{ backgroundColor: '#009B9B' }}>M</div>
+              <span className="font-display font-semibold text-lg tracking-tight" style={{ color: '#2D5A5A' }}>M.A.P.A.</span>
+              {setorNome && (
+                <span className="hidden sm:inline-block ml-2 px-3 py-1 rounded-lg text-xs font-bold text-white truncate" style={{ backgroundColor: '#2D5A5A' }}>
+                  {setorNome}
+                </span>
+              )}
+            </div>
+            <p className="shrink-0 text-sm font-semibold" style={{ color: '#2D5A5A' }}>
+              Pergunta {currentIndex + 1} de {questions.length}
+            </p>
+          </div>
+          <ProgressBar current={currentIndex + 1} total={questions.length} />
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 pt-32 pb-20">
-        <ProgressBar
-          current={currentIndex + 1}
-          total={questions.length}
-          categoryName={currentQuestion.subscale}
-        />
-
-        <AnimatePresence mode="wait">
+      <main className="flex-1 flex flex-col w-full max-w-4xl mx-auto px-4 sm:px-6 pt-2 pb-3 sm:justify-center sm:py-8">
+        <AnimatePresence mode="wait" custom={direction} initial={false}>
           <motion.div
             key={currentIndex}
-            initial={{ opacity: 0, x: 60 * direction }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -60 * direction }}
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
-            className="flex flex-col items-center text-center w-full"
+            custom={direction}
+            variants={TROCA_PERGUNTA}
+            initial="entra"
+            animate="centro"
+            exit="sai"
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            className="flex-1 sm:flex-none flex flex-col items-center text-center w-full"
           >
-            <div className="mb-12">
-              <h1 className="text-4xl md:text-5xl font-display font-semibold leading-tight max-w-3xl mx-auto" style={{ color: '#2D5A5A' }}>
+            <div className="flex-1 sm:flex-none sm:min-h-44 lg:min-h-60 flex flex-col justify-center py-2 sm:py-6">
+              <p className="text-xs sm:text-sm font-semibold uppercase tracking-widest mb-2" style={{ color: '#009B9B' }}>
+                {currentQuestion.subscale}
+              </p>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-display font-semibold leading-snug max-w-3xl mx-auto" style={{ color: '#2D5A5A' }}>
                 {currentQuestion.question_text}
               </h1>
-              <p className="mt-4 text-lg" style={{ color: '#404040' }}>Pense na sua semana de trabalho típica no último mês.</p>
+              <p className="mt-2 text-xs sm:text-sm" style={{ color: '#404040' }}>Pense na sua semana de trabalho típica no último mês.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 w-full max-w-5xl">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 lg:gap-3 w-full max-w-md lg:max-w-none">
               {LIKERT_CHOICES.map((choice, index) => (
                 <LikertOption
                   key={choice.value}
                   {...choice}
-                  onClick={handleAnswer}
+                  onClick={(value) => handleAnswer(currentIndex, value)}
                   index={index}
+                  selected={respostaAtual === choice.value}
                 />
               ))}
             </div>
           </motion.div>
         </AnimatePresence>
+
+        <div className="mx-auto mt-2 flex items-center justify-between w-full max-w-md lg:max-w-none text-sm font-semibold">
+          <button
+            type="button"
+            onClick={() => navegar(currentIndex - 1)}
+            disabled={currentIndex === 0}
+            className="py-2 pr-3 text-slate-500 hover:text-slate-800 disabled:invisible"
+          >
+            ← Voltar
+          </button>
+          {currentIndex < maisLonge && (
+            <button type="button" onClick={() => navegar(currentIndex + 1)} className="py-2 pl-3 hover:opacity-70" style={{ color: '#009B9B' }}>
+              Avançar →
+            </button>
+          )}
+        </div>
       </main>
 
-      <footer className="text-center pb-12 mt-12">
-        <div className="max-w-md mx-auto px-6 py-4 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm">
-          <p className="text-sm text-slate-500 italic">"Não existem respostas certas ou erradas. Seu feedback sincero nos ajuda a construir um ambiente de trabalho mais saudável."</p>
-        </div>
-        <div className="mt-20 opacity-20 hover:opacity-100 transition-opacity duration-500 pointer-events-none select-none">
-          <h2 className="text-[10vw] font-display font-bold tracking-tighter leading-none uppercase m-0 p-0 text-slate-200">
-            Questionário M.A.P.A.
-          </h2>
-        </div>
+      <footer className="hidden sm:block px-4 pb-3 text-center">
+        <p className="text-xs text-slate-400">Não existem respostas certas ou erradas.</p>
       </footer>
     </div>
   );
