@@ -3,11 +3,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { Sidebar } from '../components/Sidebar';
+import { DoisFatoresCard } from '../components/DoisFatoresCard';
+import { SessoesCard } from '../components/SessoesCard';
 import { supabase } from '../lib/supabase';
 import {
   fetchPreferencias, salvarPreferencias, enviarEmailTeste,
   type PreferenciasNotificacao,
 } from '../services/notificacoes';
+import { conferirSenha } from '../services/doisFatores';
 
 export function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -89,12 +92,8 @@ export function SettingsPage() {
 
     setSalvandoSenha(true);
     try {
-      // Verifica a senha atual tentando reautenticar
-      const { error: loginError } = await supabase.auth.signInWithPassword({
-        email: user?.email ?? '',
-        password: senhaAtual,
-      });
-      if (loginError) {
+      // Verifica a senha atual sem trocar a sessão em uso
+      if (!(await conferirSenha(user?.email ?? '', senhaAtual))) {
         setSenhaStatus({ tipo: 'erro', msg: 'Senha atual incorreta.' });
         return;
       }
@@ -390,33 +389,9 @@ export function SettingsPage() {
                 </div>
               </div>
 
-              {/* Two Factor Authentication */}
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Autenticação de Dois Fatores</h3>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Aumente a segurança de sua conta</p>
-                  </div>
-                  <input type="checkbox" className="w-6 h-6 shrink-0 rounded border-slate-300 accent-blue-600" />
-                </div>
-              </div>
+              <DoisFatoresCard />
 
-              {/* Active Sessions */}
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Sessões Ativas</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl">
-                    <div>
-                      <p className="font-semibold text-slate-900 dark:text-white">Navegador Atual</p>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">Chrome - São Paulo, BR</p>
-                    </div>
-                    <span className="text-xs font-bold text-green-600 bg-green-100 px-3 py-1 rounded-full">Agora</span>
-                  </div>
-                </div>
-                <button className="w-full mt-4 px-4 py-2 border-2 border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 font-bold rounded-xl hover:bg-red-50 dark:hover:bg-red-950 transition-all">
-                  Encerrar Todas as Sessões
-                </button>
-              </div>
+              <SessoesCard />
             </div>
           )}
         </div>

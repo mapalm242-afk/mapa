@@ -221,12 +221,30 @@ CREATE INDEX IF NOT EXISTS idx_lancamentos_tipo ON lancamentos_financeiros(tipo)
 -- consulta profiles direto entra em recursão infinita.
 -- ------------------------------------------------------------
 
+-- Dois fatores (aplicativo autenticador, MFA do Supabase Auth): quem tem
+-- um fator verificado só é reconhecido depois de informar o código nesta
+-- sessão (JWT com aal2). Sem isto, quem tivesse só a senha pularia a tela
+-- do código chamando a API direto. Contas sem dois fatores não mudam.
+CREATE OR REPLACE FUNCTION public.sessao_confiavel()
+RETURNS BOOLEAN
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(auth.jwt()->>'aal', 'aal1') = 'aal2'
+      OR NOT EXISTS (
+        SELECT 1 FROM auth.mfa_factors f
+        WHERE f.user_id = auth.uid() AND f.status = 'verified'
+      );
+$$;
+
+-- Todas as policies e funções de relatório passam por is_admin() e
+-- current_empresa_id(); a exigência dos dois fatores entra por aqui.
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS BOOLEAN
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT EXISTS (
+  SELECT sessao_confiavel() AND EXISTS (
     SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'
   );
 $$;
@@ -236,7 +254,7 @@ RETURNS BIGINT
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT empresa_id FROM profiles WHERE id = auth.uid();
+  SELECT empresa_id FROM profiles WHERE id = auth.uid() AND sessao_confiavel();
 $$;
 
 -- Mínimo de respostas para um grupo (setor, ou empresa no mês) ter
@@ -1134,6 +1152,8 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, se
 
 GRANT EXECUTE ON FUNCTION public.is_admin()                  TO authenticated;
 GRANT EXECUTE ON FUNCTION public.current_empresa_id()        TO authenticated;
+-- Só é chamada de dentro das funções acima (que rodam como dono)
+REVOKE EXECUTE ON FUNCTION public.sessao_confiavel() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.convite_pendente_existe()   TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.empresa_tem_gestor(BIGINT)  TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.empresa_em_cadastro(BIGINT) TO anon, authenticated;
@@ -1497,11 +1517,13 @@ BEGIN
   END IF;
 
   -- pgr_report() filtra pela empresa de quem consulta; aqui os relatórios
-  -- são calculados com a visão de um admin (todas as empresas)
+  -- são calculados com a visão de um admin (todas as empresas). O aal2
+  -- vale como "código informado": sem ele, um admin com dois fatores
+  -- ligados deixaria os e-mails sem dados (ver sessao_confiavel()).
   SELECT p.id INTO v_admin FROM profiles p WHERE p.role = 'admin' ORDER BY p.created_at LIMIT 1;
   IF v_admin IS NOT NULL THEN
     PERFORM set_config('request.jwt.claims',
-      jsonb_build_object('sub', v_admin, 'role', 'authenticated')::TEXT, TRUE);
+      jsonb_build_object('sub', v_admin, 'role', 'authenticated', 'aal', 'aal2')::TEXT, TRUE);
     PERFORM gerar_alertas_criticos();
     PERFORM gerar_resumo_diario();
     PERFORM gerar_aviso_analise_concluida();
@@ -1532,7 +1554,7 @@ AS $$
     notif_alertas_criticos  = COALESCE(p_alertas_criticos, notif_alertas_criticos),
     notif_resumo_diario     = COALESCE(p_resumo_diario, notif_resumo_diario),
     notif_analise_concluida = COALESCE(p_analise_concluida, notif_analise_concluida)
-  WHERE id = auth.uid();
+  WHERE id = auth.uid() AND sessao_confiavel();
 $$;
 
 -- Tela de Configurações: põe um e-mail de teste na fila do próprio admin

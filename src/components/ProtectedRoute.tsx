@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { CodigoDoisFatores } from './CodigoDoisFatores';
 import type { ReactNode } from 'react';
 
 interface Props {
@@ -8,7 +9,7 @@ interface Props {
 }
 
 export function ProtectedRoute({ children, adminOnly = false }: Props) {
-  const { user, loading } = useAuth();
+  const { user, loading, mfaPendente } = useAuth();
 
   if (loading) {
     return (
@@ -19,6 +20,8 @@ export function ProtectedRoute({ children, adminOnly = false }: Props) {
   }
 
   if (!user) return <Navigate to="/login" replace />;
+  // Conta com dois fatores: nenhuma tela aparece antes do código
+  if (mfaPendente) return <CodigoDoisFatores />;
   if (adminOnly && user.role !== 'admin') return <Navigate to="/dashboard" replace />;
 
   return <>{children}</>;

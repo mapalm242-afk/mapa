@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { setViewingEmpresa } from '../lib/useEmpresaFilter';
+import { precisaDeCodigo } from '../services/doisFatores';
 import type { Session, AuthChangeEvent } from '@supabase/supabase-js';
 
 interface Profile {
@@ -17,6 +18,8 @@ interface AuthContextValue {
   session: Session | null;
   loading: boolean;
   isAdmin: boolean;
+  // Conta com dois fatores que entrou com a senha e ainda não informou o código
+  mfaPendente: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -53,10 +56,15 @@ async function fetchProfile(userId: string, email: string, metadata: Record<stri
   };
 }
 
+// Se a consulta falhar, a tela não pede o código — mas o banco continua
+// exigindo: sem ele, a conta com dois fatores não lê nem grava nada.
+const deveCodigo = () => precisaDeCodigo().catch(() => false);
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Profile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mfaPendente, setMfaPendente] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch empresa name separately (non-blocking)
@@ -83,8 +91,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(async ({ data: { session: s } }: { data: { session: Session | null } }) => {
       setSession(s);
       if (s?.user) {
-        const profile = await fetchProfile(s.user.id, s.user.email || '', s.user.user_metadata);
+        const [profile, pendente] = await Promise.all([
+          fetchProfile(s.user.id, s.user.email || '', s.user.user_metadata),
+          deveCodigo(),
+        ]);
         setUser(profile);
+        setMfaPendente(pendente);
       }
       setLoading(false);
     });
@@ -93,7 +105,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // automática da sessão, por exemplo). Aguardar aqui uma chamada do próprio
     // Supabase faz ela esperar uma trava que só solta quando o callback termina:
     // a partir daí toda chamada ao banco fica pendurada para sempre. Por isso a
-    // busca do profile é adiada para depois do callback.
+    // busca do profile (e a consulta dos dois fatores) é adiada para depois do
+    // callback.
     let eventoAtual = 0;
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event: AuthChangeEvent, s: Session | null) => {
@@ -101,15 +114,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(s);
         if (!s?.user) {
           setUser(null);
+          setMfaPendente(false);
           setLoading(false);
           return;
         }
         const u = s.user;
         setTimeout(async () => {
-          const profile = await fetchProfile(u.id, u.email || '', u.user_metadata);
+          const [profile, pendente] = await Promise.all([
+            fetchProfile(u.id, u.email || '', u.user_metadata),
+            deveCodigo(),
+          ]);
           // chegou evento mais novo (um logout, por exemplo) enquanto buscava
           if (esteEvento !== eventoAtual) return;
           setUser(profile);
+          setMfaPendente(pendente);
           setLoading(false);
         }, 0);
       }
@@ -130,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
+    setMfaPendente(false);
     setViewingEmpresa(null);
     queryClient.clear();
   };
@@ -137,7 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAdmin = user?.role === 'admin';
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, isAdmin, login, logout }}>
+    <AuthContext.Provider value={{ user, session, loading, isAdmin, mfaPendente, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
