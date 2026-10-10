@@ -63,16 +63,16 @@ export function PlanoAcaoPage() {
 
       <main className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 flex items-center justify-between shrink-0">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white">Plano de Ação</h1>
+        <header className="min-h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 pl-16 md:pl-8 pr-4 md:pr-8 py-2 md:py-0 flex items-center justify-between gap-2 shrink-0">
+          <div className="min-w-0">
+            <h1 className="text-base md:text-xl font-bold text-slate-900 dark:text-white truncate">Plano de Ação</h1>
             <p className="text-xs text-slate-500 hidden sm:block">Ações em andamento com base nas medidas sugeridas</p>
           </div>
           <button
             onClick={() => navigate('/plano-acao/novo')}
-            className="bg-[#009B9B] hover:bg-[#008585] text-white px-4 py-2 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all shadow-lg"
+            className="bg-[#009B9B] hover:bg-[#008585] text-white px-3 md:px-4 py-2 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all shadow-lg shrink-0 whitespace-nowrap"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
             Nova Ação

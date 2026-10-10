@@ -170,14 +170,14 @@ export function SettingsPage() {
             <div className="space-y-6 max-w-2xl">
               {/* Theme */}
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white">Tema</h3>
                     <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Escolha entre tema claro ou escuro</p>
                   </div>
                   <button
                     onClick={handleThemeToggle}
-                    className="relative inline-flex items-center w-14 h-8 rounded-full bg-blue-200 dark:bg-blue-700 transition-colors hover:bg-blue-300 dark:hover:bg-primary cursor-pointer"
+                    className="relative inline-flex items-center w-14 h-8 shrink-0 rounded-full bg-blue-200 dark:bg-blue-700 transition-colors hover:bg-blue-300 dark:hover:bg-primary cursor-pointer"
                   >
                     <span className={`inline-block w-6 h-6 transform rounded-full bg-white shadow-lg transition-transform ${theme === 'dark' ? 'translate-x-7' : 'translate-x-1'}`} />
                   </button>
@@ -189,12 +189,12 @@ export function SettingsPage() {
 
               {/* Language */}
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="min-w-0">
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white">Idioma</h3>
                     <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Selecione seu idioma preferido</p>
                   </div>
-                  <select className="px-4 py-2 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-primary/50 transition-all">
+                  <select className="w-full sm:w-auto min-w-0 px-4 py-2 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-primary/50 transition-all">
                     <option>Português (BR)</option>
                     <option>English</option>
                     <option>Español</option>
@@ -204,12 +204,12 @@ export function SettingsPage() {
 
               {/* Timezone */}
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="min-w-0">
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white">Fuso Horário</h3>
                     <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Configure seu fuso horário</p>
                   </div>
-                  <select className="px-4 py-2 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-primary/50 transition-all">
+                  <select className="w-full sm:w-auto min-w-0 px-4 py-2 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-primary/50 transition-all">
                     <option>America/Sao_Paulo (UTC-3)</option>
                     <option>America/Manaus (UTC-4)</option>
                     <option>America/Anchorage (UTC-9)</option>
@@ -358,12 +358,12 @@ export function SettingsPage() {
 
               {/* Two Factor Authentication */}
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white">Autenticação de Dois Fatores</h3>
                     <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">Aumente a segurança de sua conta</p>
                   </div>
-                  <input type="checkbox" className="w-6 h-6 rounded border-slate-300 accent-blue-600" />
+                  <input type="checkbox" className="w-6 h-6 shrink-0 rounded border-slate-300 accent-blue-600" />
                 </div>
               </div>
 
