@@ -89,20 +89,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
+    // Este callback roda com a trava de auth do supabase-js tomada (na renovação
+    // automática da sessão, por exemplo). Aguardar aqui uma chamada do próprio
+    // Supabase faz ela esperar uma trava que só solta quando o callback termina:
+    // a partir daí toda chamada ao banco fica pendurada para sempre. Por isso a
+    // busca do profile é adiada para depois do callback.
+    let eventoAtual = 0;
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event: AuthChangeEvent, s: Session | null) => {
+      (_event: AuthChangeEvent, s: Session | null) => {
+        const esteEvento = ++eventoAtual;
         setSession(s);
-        if (s?.user) {
-          const profile = await fetchProfile(s.user.id, s.user.email || '', s.user.user_metadata);
-          setUser(profile);
-        } else {
+        if (!s?.user) {
           setUser(null);
+          setLoading(false);
+          return;
         }
-        setLoading(false);
+        const u = s.user;
+        setTimeout(async () => {
+          const profile = await fetchProfile(u.id, u.email || '', u.user_metadata);
+          // chegou evento mais novo (um logout, por exemplo) enquanto buscava
+          if (esteEvento !== eventoAtual) return;
+          setUser(profile);
+          setLoading(false);
+        }, 0);
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      eventoAtual = -1;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
