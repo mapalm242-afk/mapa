@@ -54,10 +54,15 @@ CREATE TABLE IF NOT EXISTS departments (
   id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   empresa_id BIGINT      NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
   name       TEXT        NOT NULL,
+  headcount  INTEGER     CHECK (headcount > 0),
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_departments_empresa ON departments(empresa_id);
+
+-- headcount = quantas pessoas trabalham no setor (base da adesão à pesquisa).
+-- O ALTER cobre bancos criados antes de a coluna existir.
+ALTER TABLE departments ADD COLUMN IF NOT EXISTS headcount INTEGER CHECK (headcount > 0);
 
 -- Links de cadastro gerados pelo admin (/cadastro?token=...), uso único
 CREATE TABLE IF NOT EXISTS convites (
@@ -293,6 +298,28 @@ BEGIN
   END IF;
   RETURN convite_pendente_existe()
      AND empresa_em_cadastro(split_part(p_name, '/', 2)::BIGINT);
+END;
+$$;
+
+-- Total de pessoas do setor (base da adesão). O admin altera qualquer
+-- setor; o gestor, só os da própria empresa — e só este campo.
+CREATE OR REPLACE FUNCTION public.definir_headcount(p_department_id UUID, p_headcount INTEGER)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF p_headcount IS NULL OR p_headcount < 1 OR p_headcount > 1000000 THEN
+    RAISE EXCEPTION 'Quantidade de pessoas inválida.' USING ERRCODE = '22023';
+  END IF;
+
+  UPDATE departments d SET headcount = p_headcount
+  WHERE d.id = p_department_id
+    AND (is_admin() OR d.empresa_id = current_empresa_id());
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Setor não encontrado ou sem permissão.' USING ERRCODE = '42501';
+  END IF;
 END;
 $$;
 
@@ -587,7 +614,8 @@ SELECT
     WHEN 'Moderado'      THEN '#f97316'
     WHEN 'Significativo' THEN '#ef4444'
     WHEN 'Intolerável'   THEN '#991b1b'
-  END                                           AS cor_hex
+  END                                           AS cor_hex,
+  d.headcount                                   AS total_pessoas
 FROM v_pgr_report pr
 JOIN departments d       ON d.id = pr.department_id
 LEFT JOIN pgr_actions pa ON pa.subscale = pr.subscale;
@@ -1023,8 +1051,9 @@ REVOKE ALL ON
   vw_media_por_categoria_setor, vw_evolucao_mensal, vw_tendencia_riscos
 FROM anon;
 
--- Questionário
-GRANT SELECT ON questions, departments TO anon;
+-- Questionário: do setor, o visitante lê só o id e o nome
+GRANT SELECT ON questions TO anon;
+GRANT SELECT (id, name) ON departments TO anon;
 -- Cadastro por convite
 GRANT INSERT ON empresas, departments TO anon;
 GRANT SELECT (id) ON empresas TO anon;
@@ -1044,6 +1073,8 @@ GRANT EXECUTE ON FUNCTION public.convite_pendente_existe()   TO anon, authentica
 GRANT EXECUTE ON FUNCTION public.empresa_tem_gestor(BIGINT)  TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.empresa_em_cadastro(BIGINT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.logo_em_cadastro(TEXT)      TO anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.definir_headcount(UUID, INTEGER) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.definir_headcount(UUID, INTEGER) TO authenticated;
 GRANT EXECUTE ON FUNCTION insert_survey_response(UUID, JSONB, UUID) TO anon, authenticated;
 
 -- Agregações: só para quem está logado (a regra de empresa é delas)

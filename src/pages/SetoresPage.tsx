@@ -1,14 +1,19 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Sidebar } from '../components/Sidebar';
 import { useEmpresaFilter } from '../lib/useEmpresaFilter';
-import { fetchSetoresComStatus } from '../services/setores';
+import { fetchSetoresComStatus, definirTotalPessoas } from '../services/setores';
 import { escapeHtml } from '../lib/escapeHtml';
 import { MIN_RESPONDENTES } from '../lib/anonimato';
+import { ADESAO_MINIMA } from '../lib/coleta';
 
 export function SetoresPage() {
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [qrSetor, setQrSetor] = useState<{ id: string; nome: string } | null>(null);
+  // Edição do total de pessoas de um setor, direto na tabela
+  const [editando, setEditando] = useState<{ id: string; valor: string } | null>(null);
+  const [erroPessoas, setErroPessoas] = useState<string | null>(null);
   const { empresaId, shouldFilter, ready } = useEmpresaFilter();
 
   const gerarQRCodeUrl = (id: string, size = 200) => {
@@ -55,6 +60,29 @@ export function SetoresPage() {
   });
 
   const error = queryError ? 'Não foi possível carregar os setores.' : null;
+
+  const pessoasMutation = useMutation({
+    mutationFn: ({ id, total }: { id: string; total: number }) => definirTotalPessoas(id, total),
+    onSuccess: () => {
+      setEditando(null);
+      // adesão e status de coleta dependem desse número em outras telas também
+      queryClient.invalidateQueries({ queryKey: ['setoresComStatus'] });
+      queryClient.invalidateQueries({ queryKey: ['reportsStats'] });
+      queryClient.invalidateQueries({ queryKey: ['pgrCompleto'] });
+    },
+    onError: () => setErroPessoas('Não foi possível salvar. Tente novamente.'),
+  });
+
+  const salvarPessoas = () => {
+    if (!editando) return;
+    const total = Number(editando.valor);
+    if (!Number.isInteger(total) || total < 1) {
+      setErroPessoas('Informe um número inteiro maior que zero.');
+      return;
+    }
+    setErroPessoas(null);
+    pessoasMutation.mutate({ id: editando.id, total });
+  };
 
   const getRiskColor = (nivel: string) => {
     if (nivel === 'Crítico') return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700';
@@ -181,7 +209,11 @@ export function SetoresPage() {
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white">Lista de Setores</h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     O nível de risco de um setor aparece a partir de {MIN_RESPONDENTES} respostas, para preservar o anonimato de quem respondeu.
+                    A coleta é considerada completa quando {Math.round(ADESAO_MINIMA * 100)}% das pessoas do setor responderam.
                   </p>
+                  {erroPessoas && (
+                    <p className="text-xs font-medium text-red-600 dark:text-red-400 mt-2">{erroPessoas}</p>
+                  )}
                 </div>
 
                 <div className="overflow-x-auto">
@@ -189,10 +221,11 @@ export function SetoresPage() {
                     <thead>
                       <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
                         <th className="px-8 py-4 text-left text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest">Setor</th>
+                        <th className="px-8 py-4 text-left text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest">Pessoas no setor</th>
                         <th className="px-8 py-4 text-left text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest">Respondentes</th>
                         <th className="px-8 py-4 text-left text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest">Nível de Risco</th>
                         <th className="px-8 py-4 text-left text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest">Status de Coleta</th>
-                        <th className="px-8 py-4 text-left text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest">Progresso</th>
+                        <th className="px-8 py-4 text-left text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest">Adesão</th>
                         <th className="px-8 py-4 text-left text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest">Última Atualização</th>
                         <th className="px-8 py-4 text-left text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest">QR Code</th>
                       </tr>
@@ -201,6 +234,48 @@ export function SetoresPage() {
                       {filteredSetores.map((setor) => (
                         <tr key={setor.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                           <td className="px-8 py-5 text-sm font-bold text-slate-900 dark:text-white">{setor.nome}</td>
+                          <td className="px-8 py-5 text-sm text-slate-600 dark:text-slate-400 font-medium">
+                            {editando?.id === setor.id ? (
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  autoFocus
+                                  value={editando.valor}
+                                  onChange={(e) => setEditando({ id: setor.id, valor: e.target.value })}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') salvarPessoas();
+                                    if (e.key === 'Escape') { setEditando(null); setErroPessoas(null); }
+                                  }}
+                                  className="w-20 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm"
+                                />
+                                <button
+                                  onClick={salvarPessoas}
+                                  disabled={pessoasMutation.isPending}
+                                  title="Salvar"
+                                  className="p-1 rounded-lg text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/20 disabled:opacity-50"
+                                >
+                                  <span className="material-symbols-rounded text-base">check</span>
+                                </button>
+                                <button
+                                  onClick={() => { setEditando(null); setErroPessoas(null); }}
+                                  title="Cancelar"
+                                  className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                >
+                                  <span className="material-symbols-rounded text-base">close</span>
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => { setErroPessoas(null); setEditando({ id: setor.id, valor: setor.total_pessoas ? String(setor.total_pessoas) : '' }); }}
+                                title="Alterar o total de pessoas do setor"
+                                className="flex items-center gap-1 hover:text-teal-600 transition-colors"
+                              >
+                                {setor.total_pessoas ?? <span className="text-xs text-teal-600 font-bold">Informar</span>}
+                                <span className="material-symbols-rounded text-sm text-slate-400">edit</span>
+                              </button>
+                            )}
+                          </td>
                           <td className="px-8 py-5 text-sm text-slate-600 dark:text-slate-400 font-medium">{setor.funcionarios}</td>
                           <td className="px-8 py-5">
                             <span className={`inline-block px-3 py-1 rounded-lg text-xs font-bold border ${getRiskColor(setor.risco_nivel)}`}>
@@ -213,13 +288,21 @@ export function SetoresPage() {
                             </span>
                           </td>
                           <td className="px-8 py-5">
-                            <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden max-w-xs">
-                              <div
-                                className="h-full bg-linear-to-r from-blue-500 to-cyan-500 rounded-full"
-                                style={{ width: `${setor.percentual_coleta}%` }}
-                              />
-                            </div>
-                            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{setor.percentual_coleta}%</p>
+                            {setor.percentual_coleta === null ? (
+                              <p className="text-xs text-slate-400">Informe as pessoas do setor</p>
+                            ) : (
+                              <>
+                                <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden max-w-xs">
+                                  <div
+                                    className="h-full bg-linear-to-r from-blue-500 to-cyan-500 rounded-full"
+                                    style={{ width: `${setor.percentual_coleta}%` }}
+                                  />
+                                </div>
+                                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                                  {setor.percentual_coleta}% ({setor.funcionarios} de {setor.total_pessoas})
+                                </p>
+                              </>
+                            )}
                           </td>
                           <td className="px-8 py-5 text-sm text-slate-600 dark:text-slate-400">{formatDate(setor.ultima_atualizacao)}</td>
                           <td className="px-8 py-5">

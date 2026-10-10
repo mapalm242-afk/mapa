@@ -5,7 +5,7 @@ import { validarConvite, marcarConviteUsado } from '../services/convites';
 import { createEmpresa, createDepartments, uploadEmpresaLogo } from '../services/empresas';
 import { escapeHtml } from '../lib/escapeHtml';
 
-interface Setor { id: string; nome: string; }
+interface Setor { id: string; nome: string; pessoas: number; }
 interface SetorCriado { id: string; nome: string; }
 
 export function CadastroEmpresaPage() {
@@ -21,6 +21,7 @@ export function CadastroEmpresaPage() {
   });
   const [setores, setSetores] = useState<Setor[]>([]);
   const [novoSetor, setNovoSetor] = useState('');
+  const [novoSetorPessoas, setNovoSetorPessoas] = useState('');
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -54,10 +55,15 @@ export function CadastroEmpresaPage() {
   };
 
   const adicionarSetor = () => {
-    if (novoSetor.trim()) {
-      setSetores(prev => [...prev, { id: `tmp_${Date.now()}`, nome: novoSetor.trim() }]);
-      setNovoSetor('');
+    const pessoas = Number(novoSetorPessoas);
+    if (!novoSetor.trim() || !Number.isInteger(pessoas) || pessoas < 1) {
+      setError('Informe o nome do setor e quantas pessoas trabalham nele.');
+      return;
     }
+    setError('');
+    setSetores(prev => [...prev, { id: `tmp_${Date.now()}`, nome: novoSetor.trim(), pessoas }]);
+    setNovoSetor('');
+    setNovoSetorPessoas('');
   };
 
   const removerSetor = (id: string) => setSetores(prev => prev.filter(s => s.id !== id));
@@ -92,7 +98,7 @@ export function CadastroEmpresaPage() {
       }
 
       setStepStatus(2, 'running');
-      const depts = await createDepartments(empresa.id, setores.map(s => s.nome));
+      const depts = await createDepartments(empresa.id, setores.map(s => ({ nome: s.nome, pessoas: s.pessoas })));
       setSetoresCriados(depts.map(d => ({ id: d.id, nome: d.name })));
       setStepStatus(2, 'done');
 
@@ -337,11 +343,14 @@ export function CadastroEmpresaPage() {
               <span className="material-symbols-rounded text-teal-600">account_tree</span>
               Setores / Departamentos *
             </h3>
-            <p className="text-xs text-slate-500">Cada setor terá seu próprio QR Code para os colaboradores responderem.</p>
+            <p className="text-xs text-slate-500">Cada setor terá seu próprio QR Code para os colaboradores responderem. Informe quantas pessoas trabalham em cada um.</p>
             <div className="flex gap-2">
               <input value={novoSetor} onChange={e => setNovoSetor(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && adicionarSetor()}
                 placeholder="Ex: RH, Financeiro, Logística..." className="flex-1 h-10 px-4 rounded-lg border border-slate-300 text-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 outline-none transition-all" />
+              <input type="number" min={1} value={novoSetorPessoas} onChange={e => setNovoSetorPessoas(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && adicionarSetor()}
+                placeholder="Nº de pessoas" className="w-32 h-10 px-4 rounded-lg border border-slate-300 text-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 outline-none transition-all" />
               <button onClick={adicionarSetor} className="w-10 h-10 bg-teal-600 hover:bg-teal-700 text-white rounded-lg flex items-center justify-center transition-all">
                 <span className="material-symbols-rounded">add</span>
               </button>
@@ -349,7 +358,7 @@ export function CadastroEmpresaPage() {
             <div className="flex flex-wrap gap-2">
               {setores.map(s => (
                 <div key={s.id} className="flex items-center gap-1 bg-white border border-slate-200 pl-3 pr-2 py-1.5 rounded-full text-xs font-semibold text-slate-600">
-                  {s.nome}
+                  {s.nome} · {s.pessoas} {s.pessoas === 1 ? 'pessoa' : 'pessoas'}
                   <button onClick={() => removerSetor(s.id)} className="ml-1 hover:text-red-500 transition-colors">
                     <span className="material-symbols-rounded text-sm">close</span>
                   </button>

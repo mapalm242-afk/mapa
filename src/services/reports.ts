@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { statusColeta } from '../lib/coleta';
 
 // ============================================================
 // Tipos
@@ -25,7 +26,7 @@ export interface HistoricoSetor {
 export interface ReportsStats {
   total_coletas: number;
   este_mes: number;
-  completa_pct: number;      // % de setores com ≥ 5 respondentes
+  completa_pct: number;      // % de setores com coleta completa (regra em lib/coleta.ts)
   ultimas_24h: number;
 }
 
@@ -164,21 +165,24 @@ export async function fetchReportsStats(empresaId?: string | null): Promise<Repo
   const cutoff24h = new Date(hoje.getTime() - 24 * 60 * 60 * 1000);
   const ultimas24h = lista.filter(r => new Date(r.created_at) > cutoff24h).length;
 
-  // 2. Contar setores com coleta completa (≥5 respondentes)
+  // 2. Contar setores com coleta completa
   const byDept = new Map<string, number>();
   for (const r of lista) {
     byDept.set(r.department_id, (byDept.get(r.department_id) || 0) + 1);
   }
-  const setoresCompletos = Array.from(byDept.values()).filter(c => c >= 5).length;
 
-  // Total de setores da empresa (pra % de completude)
-  let deptCountQuery = supabase.from('departments').select('id', { count: 'exact', head: true });
-  if (empresaId) deptCountQuery = deptCountQuery.eq('empresa_id', empresaId);
-  const { count: totalSetores, error: e2 } = await deptCountQuery;
+  // Todos os setores da empresa, com o total de pessoas (base da adesão)
+  let deptQuery = supabase.from('departments').select('id, headcount');
+  if (empresaId) deptQuery = deptQuery.eq('empresa_id', empresaId);
+  const { data: depts, error: e2 } = await deptQuery;
   if (e2) throw e2;
 
-  const completa_pct = (totalSetores || 0) > 0
-    ? Math.round((setoresCompletos / (totalSetores || 1)) * 100)
+  const totalSetores = (depts || []).length;
+  const setoresCompletos = (depts || [])
+    .filter(d => statusColeta(byDept.get(d.id) || 0, d.headcount) === 'Completa').length;
+
+  const completa_pct = totalSetores > 0
+    ? Math.round((setoresCompletos / totalSetores) * 100)
     : 0;
 
   return {

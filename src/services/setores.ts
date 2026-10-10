@@ -1,38 +1,39 @@
 import { supabase } from '../lib/supabase';
 import { MIN_RESPONDENTES } from '../lib/anonimato';
+import { adesao, statusColeta, type ColetaStatus } from '../lib/coleta';
 
 export type RiscoNivel = 'Baixo' | 'Médio' | 'Crítico' | 'Pendente';
-export type ColetaStatus = 'Completa' | 'Parcial' | 'Pendente';
+export type { ColetaStatus };
 
 export interface SetorStatus {
   id: string;
   nome: string;
   empresa_id: string;
-  funcionarios: number;
+  funcionarios: number;              // quantos responderam
+  total_pessoas: number | null;      // quantas pessoas trabalham no setor (null = não informado)
   risco_nivel: RiscoNivel;
   coleta_status: ColetaStatus;
   ultima_atualizacao: string | null;
-  percentual_coleta: number;
+  percentual_coleta: number | null;  // adesão em %, null sem o total de pessoas
 }
 
 /**
  * Lista todos os setores (departments) com status agregado:
- * - quantos responderam (respondents)
+ * - quantos responderam (respondents) e a adesão em relação ao total de pessoas
  * - pior grau de risco (do v_pgr_report)
- * - status da coleta e progresso
+ * - status da coleta
  * - data da última resposta
  *
  * Regras (ajustáveis no futuro):
  *   - Risco: max(grau_risco) → ≥16 Crítico, ≥8 Médio, <8 Baixo; abaixo do
  *     mínimo de respostas = Pendente (o banco não devolve PGR desse setor)
- *   - Status: 0 = Pendente, 1-4 = Parcial, ≥5 = Completa
- *   - Progresso: min(100, respondentes / 5 * 100)
+ *   - Status e adesão: ver lib/coleta.ts
  */
 export async function fetchSetoresComStatus(empresaId?: string | null): Promise<SetorStatus[]> {
   // 1. Pega todos os departments (filtrado por empresa se gestor)
   let deptQuery = supabase
     .from('departments')
-    .select('id, name, empresa_id')
+    .select('id, name, empresa_id, headcount')
     .order('name');
   if (empresaId) deptQuery = deptQuery.eq('empresa_id', empresaId);
 
@@ -86,24 +87,29 @@ export async function fetchSetoresComStatus(empresaId?: string | null): Promise<
     else if (maxGrau >= 8)  risco_nivel = 'Médio';
     else                     risco_nivel = 'Baixo';
 
-    let coleta_status: ColetaStatus;
-    if (count === 0)                    coleta_status = 'Pendente';
-    else if (count < MIN_RESPONDENTES)  coleta_status = 'Parcial';
-    else                                coleta_status = 'Completa';
-
-    const percentual_coleta = Math.min(100, Math.round((count / MIN_RESPONDENTES) * 100));
+    const fracao = adesao(count, d.headcount);
 
     setoresMap.set(d.id, {
       id: d.id,
       nome: d.name,
       empresa_id: String(d.empresa_id),
       funcionarios: count,
+      total_pessoas: d.headcount ?? null,
       risco_nivel,
-      coleta_status,
+      coleta_status: statusColeta(count, d.headcount),
       ultima_atualizacao: ultima,
-      percentual_coleta,
+      percentual_coleta: fracao === null ? null : Math.round(fracao * 100),
     });
   }
 
   return Array.from(setoresMap.values());
+}
+
+// Admin altera qualquer setor; gestor, só os da própria empresa (regra na RPC)
+export async function definirTotalPessoas(departmentId: string, totalPessoas: number): Promise<void> {
+  const { error } = await supabase.rpc('definir_headcount', {
+    p_department_id: departmentId,
+    p_headcount: totalPessoas,
+  });
+  if (error) throw error;
 }

@@ -6,6 +6,7 @@ import { escapeHtml } from '../lib/escapeHtml';
 interface Setor {
   id: string;
   nome: string;
+  pessoas: number;
 }
 
 interface FormData {
@@ -33,6 +34,7 @@ export function NewClientPage({ onClose }: { onClose?: () => void }) {
   });
 
   const [novoSetor, setNovoSetor] = useState('');
+  const [novoSetorPessoas, setNovoSetorPessoas] = useState('');
   const [cadastroCompleto, setCadastroCompleto] = useState(false);
   const [, setEmpresaId] = useState<string>('');
   const [setoresCriados, setSetoresCriados] = useState<SetorCriado[]>([]);
@@ -54,13 +56,18 @@ export function NewClientPage({ onClose }: { onClose?: () => void }) {
   };
 
   const adicionarSetor = () => {
-    if (novoSetor.trim()) {
-      setFormData(prev => ({
-        ...prev,
-        setores: [...prev.setores, { id: `temp_${Date.now()}`, nome: novoSetor.trim() }],
-      }));
-      setNovoSetor('');
+    const pessoas = Number(novoSetorPessoas);
+    if (!novoSetor.trim() || !Number.isInteger(pessoas) || pessoas < 1) {
+      setError('Informe o nome do setor e quantas pessoas trabalham nele.');
+      return;
     }
+    setError('');
+    setFormData(prev => ({
+      ...prev,
+      setores: [...prev.setores, { id: `temp_${Date.now()}`, nome: novoSetor.trim(), pessoas }],
+    }));
+    setNovoSetor('');
+    setNovoSetorPessoas('');
   };
 
   const removerSetor = (id: string) => {
@@ -150,7 +157,7 @@ export function NewClientPage({ onClose }: { onClose?: () => void }) {
       }
 
       // 2. Criar departamentos
-      const depts = await createDepartments(newEmpresaId, formData.setores.map(s => s.nome));
+      const depts = await createDepartments(newEmpresaId, formData.setores.map(s => ({ nome: s.nome, pessoas: s.pessoas })));
       setSetoresCriados(depts.map(d => ({ id: d.id, nome: d.name })));
 
       // 3. Criar usuário gestor
@@ -364,7 +371,7 @@ export function NewClientPage({ onClose }: { onClose?: () => void }) {
                   <span className="material-symbols-rounded text-blue-600 dark:text-blue-400 text-xl">account_tree</span>
                   Setores / Departamentos *
                 </h3>
-                <p className="text-slate-500 dark:text-slate-400 text-xs">Cada setor terá seu próprio QR Code e link de questionário.</p>
+                <p className="text-slate-500 dark:text-slate-400 text-xs">Cada setor terá seu próprio QR Code e link de questionário. Informe quantas pessoas trabalham em cada um, para medir a adesão.</p>
               </div>
               <div className="flex gap-3">
                 <input
@@ -374,6 +381,15 @@ export function NewClientPage({ onClose }: { onClose?: () => void }) {
                   onKeyDown={(e) => e.key === 'Enter' && adicionarSetor()}
                   placeholder="Ex: Logística, RH, Financeiro..."
                   className="flex-1 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-500/30 h-11 px-4 text-sm transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                />
+                <input
+                  type="number"
+                  min={1}
+                  value={novoSetorPessoas}
+                  onChange={(e) => setNovoSetorPessoas(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && adicionarSetor()}
+                  placeholder="Nº de pessoas"
+                  className="w-36 rounded-lg bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-500/30 h-11 px-4 text-sm transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 />
                 <button
                   onClick={adicionarSetor}
@@ -385,7 +401,7 @@ export function NewClientPage({ onClose }: { onClose?: () => void }) {
               <div className="flex flex-wrap gap-2.5">
                 {formData.setores.map(setor => (
                   <div key={setor.id} className="flex items-center gap-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 pl-4 pr-2 py-2 rounded-full text-xs font-semibold text-slate-600 dark:text-slate-300 shadow-sm">
-                    <span>{setor.nome}</span>
+                    <span>{setor.nome} · {setor.pessoas} {setor.pessoas === 1 ? 'pessoa' : 'pessoas'}</span>
                     <button
                       onClick={() => removerSetor(setor.id)}
                       className="flex items-center justify-center w-5 h-5 rounded-full hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 dark:hover:text-red-400 transition-colors"

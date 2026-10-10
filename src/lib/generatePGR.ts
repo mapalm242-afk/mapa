@@ -4,7 +4,8 @@ import autoTable from 'jspdf-autotable';
 interface PgrRow {
   grupo_homogeneo: string;
   descricao_perigo: string;
-  qtd_funcionarios: number;
+  qtd_funcionarios: number;        // quantos responderam
+  total_pessoas?: number | null;   // quantas pessoas trabalham no setor
   score_medio: number;
   grau_risco: number;
   classificacao_risco: string;
@@ -65,7 +66,7 @@ export function generatePGR(dados: PgrRow[], empresaNome: string | null) {
 
   const summaryItems = [
     { label: 'SETORES', value: String(setores.length), color: [59, 130, 246] },
-    { label: 'COLABORADORES', value: String(totalColab), color: [99, 102, 241] },
+    { label: 'RESPONDENTES', value: String(totalColab), color: [99, 102, 241] },
     { label: 'INTOLERÁVEIS', value: String(riskCounts['Intolerável']), color: [220, 38, 38] },
     { label: 'SIGNIFICATIVOS', value: String(riskCounts['Significativo']), color: [239, 68, 68] },
   ];
@@ -91,9 +92,14 @@ export function generatePGR(dados: PgrRow[], empresaNome: string | null) {
     const rows = dados.filter(d => d.grupo_homogeneo === s);
     const maxRisco = rows.reduce((max, r) => r.grau_risco > max.grau_risco ? r : max, rows[0]);
     const avgScore = Math.round(rows.reduce((a, r) => a + r.score_medio, 0) / rows.length);
+    const respostas = rows[0]?.qtd_funcionarios || 0;
+    const pessoas = rows[0]?.total_pessoas ?? null;
     return {
       setor: s,
-      funcionarios: rows[0]?.qtd_funcionarios || 0,
+      funcionarios: respostas,
+      pessoas,
+      // adesão só existe quando o total de pessoas do setor foi informado
+      adesao: pessoas ? `${Math.min(100, Math.round((respostas / pessoas) * 100))}%` : '-',
       scoreMedia: avgScore,
       riscoMax: maxRisco.classificacao_risco,
       grauMax: maxRisco.grau_risco,
@@ -107,10 +113,12 @@ export function generatePGR(dados: PgrRow[], empresaNome: string | null) {
 
   autoTable(doc, {
     startY: summaryY + boxH + 16,
-    head: [['Setor', 'Func.', 'Score Médio', 'Risco Máximo']],
+    head: [['Setor', 'Pessoas', 'Respostas', 'Adesão', 'Score Médio', 'Risco Máximo']],
     body: setorResumo.map(s => [
       s.setor,
+      s.pessoas ? String(s.pessoas) : '-',
       String(s.funcionarios),
+      s.adesao,
       `${s.scoreMedia}%`,
       s.riscoMax,
     ]),
@@ -126,13 +134,15 @@ export function generatePGR(dados: PgrRow[], empresaNome: string | null) {
       cellPadding: 4,
     },
     columnStyles: {
-      0: { cellWidth: 55 },
-      1: { cellWidth: 25, halign: 'center' },
-      2: { cellWidth: 30, halign: 'center' },
-      3: { cellWidth: 35, halign: 'center' },
+      0: { cellWidth: 50 },
+      1: { cellWidth: 20, halign: 'center' },
+      2: { cellWidth: 22, halign: 'center' },
+      3: { cellWidth: 20, halign: 'center' },
+      4: { cellWidth: 28, halign: 'center' },
+      5: { cellWidth: 35, halign: 'center' },
     },
     didParseCell: (data) => {
-      if (data.section === 'body' && data.column.index === 3) {
+      if (data.section === 'body' && data.column.index === 5) {
         const risk = data.cell.raw as string;
         const color = RISK_COLORS[risk];
         if (color) {

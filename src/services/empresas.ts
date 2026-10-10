@@ -51,8 +51,9 @@ export async function fetchDepartments(empresaId?: string) {
   return data || [];
 }
 
-export async function createDepartments(empresaId: string, nomes: string[]) {
-  const inserts = nomes.map(name => ({ empresa_id: empresaId, name }));
+// `pessoas` = quantas pessoas trabalham no setor (base da adesão à pesquisa)
+export async function createDepartments(empresaId: string, setores: { nome: string; pessoas: number }[]) {
+  const inserts = setores.map(s => ({ empresa_id: empresaId, name: s.nome, headcount: s.pessoas }));
   const { data, error } = await supabase.from('departments').insert(inserts).select('id, name');
   if (error) throw error;
   return data || [];

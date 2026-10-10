@@ -16,6 +16,7 @@ export interface PgrRow {
   medidas_controle: string;
   score_medio: number;
   cor_hex: string;
+  total_pessoas: number | null;   // pessoas que trabalham no setor (null = não informado)
 }
 
 export interface ResumoSetor {
