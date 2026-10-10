@@ -19,6 +19,16 @@ export async function fatorAtivo(): Promise<string | null> {
   return data.totp[0]?.id ?? null;
 }
 
+// O banco já exige o código? Sem a função sessao_confiavel() os dois fatores
+// seriam só uma tela: quem tivesse a senha leria os dados chamando a API
+// direto. A função não pode ser chamada daqui, e é isso que se usa: se ela
+// existe o banco responde "sem permissão" (42501); se não existe, "função
+// não encontrada".
+export async function bancoExigeCodigo(): Promise<boolean> {
+  const { error } = await supabase.rpc('sessao_confiavel');
+  return !error || error.code === '42501';
+}
+
 // A conta tem dois fatores e esta sessão ainda não informou o código?
 export async function precisaDeCodigo(): Promise<boolean> {
   const [nivel, fatores] = await Promise.all([

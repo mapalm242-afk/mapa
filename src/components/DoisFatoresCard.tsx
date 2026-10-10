@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import {
-  fatorAtivo, iniciarCadastro, confirmarCodigo, cancelarCadastro, desligarDoisFatores,
+  fatorAtivo, bancoExigeCodigo, iniciarCadastro, confirmarCodigo, cancelarCadastro, desligarDoisFatores,
   type CadastroDoisFatores,
 } from '../services/doisFatores';
 
@@ -18,6 +18,13 @@ export function DoisFatoresCard() {
   const { data: fatorId, isLoading, error: erroStatus } = useQuery({
     queryKey: chave,
     queryFn: fatorAtivo,
+    enabled: !!user,
+  });
+
+  // Ativar só faz sentido com o banco já exigindo o código (ver bancoExigeCodigo)
+  const { data: bancoPronto, isLoading: conferindoBanco } = useQuery({
+    queryKey: ['doisFatoresNoBanco'],
+    queryFn: bancoExigeCodigo,
     enabled: !!user,
   });
 
@@ -123,10 +130,15 @@ export function DoisFatoresCard() {
       )}
 
       {/* Desligada: botão para começar */}
-      {!isLoading && !erroStatus && !ligado && !cadastro && (
+      {!isLoading && !conferindoBanco && !erroStatus && !ligado && !cadastro && bancoPronto && (
         <button onClick={comecar} disabled={ocupado} className={`${BOTAO} mt-4`}>
           {ocupado ? 'Preparando...' : 'Ativar dois fatores'}
         </button>
+      )}
+      {!isLoading && !conferindoBanco && !erroStatus && !ligado && !bancoPronto && (
+        <p className="mt-4 text-sm font-medium px-3 py-2 rounded-lg bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+          Ainda não dá para ativar: falta aplicar a atualização do banco de dados que faz o código ser exigido.
+        </p>
       )}
 
       {/* Ativando: QR code e código de confirmação */}
