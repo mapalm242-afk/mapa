@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Sidebar } from '../components/Sidebar';
 import { useEmpresaFilter } from '../lib/useEmpresaFilter';
 import { fetchSetoresComStatus } from '../services/setores';
+import { escapeHtml } from '../lib/escapeHtml';
+import { MIN_RESPONDENTES } from '../lib/anonimato';
 
 export function SetoresPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -33,9 +35,9 @@ export function SetoresPage() {
   <div class="header"><h1>M.A.P.A.</h1><p>QR Codes dos Setores</p></div>
   <div class="grid">
     ${setoresList.map(s => `<div class="card">
-      <img src="${gerarQRCodeUrl(s.id, 300)}" alt="${s.nome}" />
-      <h3>${s.nome}</h3>
-      <div class="url">${window.location.origin}/survey?setor=${s.id}</div>
+      <img src="${escapeHtml(gerarQRCodeUrl(s.id, 300))}" alt="${escapeHtml(s.nome)}" />
+      <h3>${escapeHtml(s.nome)}</h3>
+      <div class="url">${escapeHtml(`${window.location.origin}/survey?setor=${s.id}`)}</div>
     </div>`).join('')}
   </div>
   <div class="footer">Gerado em ${new Date().toLocaleDateString('pt-BR')} &bull; M.A.P.A.</div>
@@ -177,6 +179,9 @@ export function SetoresPage() {
               <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
                 <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white">Lista de Setores</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    O nível de risco de um setor aparece a partir de {MIN_RESPONDENTES} respostas, para preservar o anonimato de quem respondeu.
+                  </p>
                 </div>
 
                 <div className="overflow-x-auto">

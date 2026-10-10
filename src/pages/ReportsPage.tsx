@@ -7,6 +7,7 @@ import {
   fetchHistoricoColetas,
   fetchReportsStats,
 } from '../services/reports';
+import { MIN_RESPONDENTES } from '../lib/anonimato';
 
 export function ReportsPage() {
   const { empresaId, shouldFilter, ready } = useEmpresaFilter();
@@ -158,7 +159,8 @@ export function ReportsPage() {
                         const altoH  = maxTotal > 0 ? (m.alto     / maxTotal) * 200 : 0;
                         const medioH = maxTotal > 0 ? (m.moderado / maxTotal) * 200 : 0;
                         const baixoH = maxTotal > 0 ? (m.baixo    / maxTotal) * 200 : 0;
-                        const hasData = m.total > 0;
+                        // Mês abaixo do mínimo de anonimato vem com total mas sem distribuição
+                        const hasData = m.alto + m.moderado + m.baixo > 0;
 
                         return (
                           <div key={m.mes_key} className="flex-1 flex flex-col items-center gap-2">
@@ -200,7 +202,12 @@ export function ReportsPage() {
                                   )}
                                 </>
                               ) : (
-                                <div className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-full mb-1" title="Sem coletas nesse mês" />
+                                <div
+                                  className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-full mb-1"
+                                  title={m.total > 0
+                                    ? `Menos de ${MIN_RESPONDENTES} respostas no mês: distribuição oculta para preservar o anonimato`
+                                    : 'Sem coletas nesse mês'}
+                                />
                               )}
                             </div>
                             <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mt-2">{m.mes_label}</p>

@@ -5,6 +5,7 @@ import { useEmpresaFilter } from '../lib/useEmpresaFilter';
 import { useAuth } from '../context/AuthContext';
 import { generatePGR } from '../lib/generatePGR';
 import { fetchPgrCompleto, type PgrRow } from '../services/dashboard';
+import { MIN_RESPONDENTES } from '../lib/anonimato';
 
 interface SetorCard {
   nome: string;
@@ -245,7 +246,9 @@ export function DashboardPage() {
 
                 {cards.length === 0 && (
                   <div className="col-span-full flex items-center justify-center py-20 text-slate-400">
-                    <p className="text-sm">Nenhum dado de priorização disponível. Execute o questionário primeiro.</p>
+                    <p className="text-sm text-center">
+                      Nenhum dado de priorização disponível. Os resultados de um setor aparecem a partir de {MIN_RESPONDENTES} respostas, para preservar o anonimato.
+                    </p>
                   </div>
                 )}
               </div>

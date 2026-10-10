@@ -33,41 +33,12 @@ export interface ReportsStats {
 // Tendência de riscos por mês (últimos 6 meses)
 // ============================================================
 
-type NivelRisco = 'Alto' | 'Moderado' | 'Baixo';
-
-function computarPiorRisco(row: {
-  risco_demandas_quantitativas: string | null;
-  risco_demandas_cognitivas: string | null;
-  risco_controle_trabalho: string | null;
-  risco_suporte_colegas: string | null;
-  risco_lideranca: string | null;
-  risco_justica_organizacional: string | null;
-}): NivelRisco {
-  const levels = [
-    row.risco_demandas_quantitativas,
-    row.risco_demandas_cognitivas,
-    row.risco_controle_trabalho,
-    row.risco_suporte_colegas,
-    row.risco_lideranca,
-    row.risco_justica_organizacional,
-  ];
-  if (levels.includes('Alto')) return 'Alto';
-  if (levels.includes('Moderado')) return 'Moderado';
-  return 'Baixo';
-}
-
+// A classificação de cada respondente é calculada no banco e só chega aqui
+// já somada por mês (vw_tendencia_riscos): o front não lê respostas nem
+// níveis de risco individuais. Mês com menos respostas que o mínimo de
+// anonimato vem só com o total, sem a distribuição (alto/moderado/baixo = null).
 export async function fetchTendenciaRiscos(empresaId?: string | null): Promise<TendenciaMes[]> {
-  // 1. Buscar respondents (já filtrados por empresa via RLS; reforça com eq se gestor)
-  let respQuery = supabase
-    .from('respondents')
-    .select('id, created_at, department_id, departments!inner(empresa_id)')
-    .order('created_at', { ascending: false });
-  if (empresaId) respQuery = respQuery.eq('departments.empresa_id', empresaId);
-
-  const { data: respondents, error: e1 } = await respQuery;
-  if (e1) throw e1;
-
-  // 2. Sempre retornar os últimos 6 meses (mesmo vazios) pra o gráfico ficar consistente
+  // 1. Sempre retornar os últimos 6 meses (mesmo vazios) pra o gráfico ficar consistente
   const hoje = new Date();
   const meses: TendenciaMes[] = [];
   const mesesAbrev = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -79,35 +50,24 @@ export async function fetchTendenciaRiscos(empresaId?: string | null): Promise<T
     meses.push({ mes_key, mes_label, alto: 0, moderado: 0, baixo: 0, total: 0 });
   }
 
-  if (!respondents || respondents.length === 0) return meses;
+  // 2. Buscar os totais por mês (uma linha por empresa × mês)
+  let query = supabase
+    .from('vw_tendencia_riscos')
+    .select('mes, total, alto, moderado, baixo');
+  if (empresaId) query = query.eq('empresa_id', empresaId);
 
-  // 3. Buscar a classificação de risco de cada respondente (via v_risk_levels)
-  const respondentIds = respondents.map(r => r.id);
-  const { data: riskLevels, error: e2 } = await supabase
-    .from('v_risk_levels')
-    .select('respondent_id, risco_demandas_quantitativas, risco_demandas_cognitivas, risco_controle_trabalho, risco_suporte_colegas, risco_lideranca, risco_justica_organizacional')
-    .in('respondent_id', respondentIds);
-  if (e2) throw e2;
+  const { data, error } = await query;
+  if (error) throw error;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const levelMap = new Map<string, any>((riskLevels || []).map(rl => [rl.respondent_id, rl]));
-
-  // 4. Contar por mês e classificação
-  for (const r of respondents) {
-    const level = levelMap.get(r.id);
-    if (!level) continue;
-
-    const pior = computarPiorRisco(level);
-    const date = new Date(r.created_at);
-    const mes_key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-    const bucket = meses.find(m => m.mes_key === mes_key);
+  // 3. Somar nos meses do recorte (admin sem filtro soma todas as empresas)
+  for (const row of data || []) {
+    const bucket = meses.find(m => m.mes_key === String(row.mes).slice(0, 7));
     if (!bucket) continue;  // fora do recorte de 6 meses
 
-    if (pior === 'Alto') bucket.alto++;
-    else if (pior === 'Moderado') bucket.moderado++;
-    else bucket.baixo++;
-    bucket.total++;
+    bucket.total += row.total;
+    bucket.alto += row.alto ?? 0;
+    bucket.moderado += row.moderado ?? 0;
+    bucket.baixo += row.baixo ?? 0;
   }
 
   return meses;

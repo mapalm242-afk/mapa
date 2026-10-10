@@ -12,6 +12,7 @@ import {
 import { fetchResumoRisco } from '../services/dashboard';
 import { setViewingEmpresa } from '../lib/useEmpresaFilter';
 import { criarConvite } from '../services/convites';
+import { escapeHtml } from '../lib/escapeHtml';
 
 interface EmpresaView {
   id: string;
@@ -165,7 +166,7 @@ export function SuperAdminPage() {
     if (!qrEmpresa) return;
     const surveyBase = window.location.origin;
     const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>QR Codes - ${qrEmpresa.nome}</title>
+<html><head><meta charset="utf-8"><title>QR Codes - ${escapeHtml(qrEmpresa.nome)}</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; padding: 40px; }
@@ -189,15 +190,15 @@ export function SuperAdminPage() {
   <div class="header">
     <h1>M.A.P.A.</h1>
     <p>Monitorização de Apoio e Prevenção Ativa</p>
-    <div class="empresa">${qrEmpresa.nome}</div>
+    <div class="empresa">${escapeHtml(qrEmpresa.nome)}</div>
   </div>
   <div class="grid">
     ${qrEmpresa.setores.map(s => `
     <div class="card">
-      <img src="${gerarQRCodeUrl(s.id, 300)}" alt="QR Code ${s.name}" />
-      <h3>${s.name}</h3>
+      <img src="${escapeHtml(gerarQRCodeUrl(s.id, 300))}" alt="QR Code ${escapeHtml(s.name)}" />
+      <h3>${escapeHtml(s.name)}</h3>
       <div class="instrucao">Escaneie o QR Code para responder o questionário de saúde mental ocupacional</div>
-      <div class="url">${surveyBase}/survey?setor=${s.id}</div>
+      <div class="url">${escapeHtml(`${surveyBase}/survey?setor=${s.id}`)}</div>
     </div>`).join('')}
   </div>
   <div class="footer">

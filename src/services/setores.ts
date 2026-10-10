@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { MIN_RESPONDENTES } from '../lib/anonimato';
 
 export type RiscoNivel = 'Baixo' | 'Médio' | 'Crítico' | 'Pendente';
 export type ColetaStatus = 'Completa' | 'Parcial' | 'Pendente';
@@ -22,7 +23,8 @@ export interface SetorStatus {
  * - data da última resposta
  *
  * Regras (ajustáveis no futuro):
- *   - Risco: max(grau_risco) → ≥16 Crítico, ≥8 Médio, <8 Baixo; sem dados = Pendente
+ *   - Risco: max(grau_risco) → ≥16 Crítico, ≥8 Médio, <8 Baixo; abaixo do
+ *     mínimo de respostas = Pendente (o banco não devolve PGR desse setor)
  *   - Status: 0 = Pendente, 1-4 = Parcial, ≥5 = Completa
  *   - Progresso: min(100, respondentes / 5 * 100)
  */
@@ -79,17 +81,17 @@ export async function fetchSetoresComStatus(empresaId?: string | null): Promise<
     const maxGrau = meusRiscos.length > 0 ? Math.max(...meusRiscos.map(p => p.grau_risco)) : 0;
 
     let risco_nivel: RiscoNivel;
-    if (count === 0) risco_nivel = 'Pendente';
+    if (count < MIN_RESPONDENTES) risco_nivel = 'Pendente';
     else if (maxGrau >= 16) risco_nivel = 'Crítico';
     else if (maxGrau >= 8)  risco_nivel = 'Médio';
     else                     risco_nivel = 'Baixo';
 
     let coleta_status: ColetaStatus;
-    if (count === 0)      coleta_status = 'Pendente';
-    else if (count < 5)   coleta_status = 'Parcial';
-    else                  coleta_status = 'Completa';
+    if (count === 0)                    coleta_status = 'Pendente';
+    else if (count < MIN_RESPONDENTES)  coleta_status = 'Parcial';
+    else                                coleta_status = 'Completa';
 
-    const percentual_coleta = Math.min(100, Math.round((count / 5) * 100));
+    const percentual_coleta = Math.min(100, Math.round((count / MIN_RESPONDENTES) * 100));
 
     setoresMap.set(d.id, {
       id: d.id,
